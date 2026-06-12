@@ -25,6 +25,10 @@ import AdSenseSlot from './components/AdSenseSlot';
 import FeaturedPromotion from './components/FeaturedPromotion';
 import SEOManager from './components/SEOManager';
 import DownloadApp from './components/DownloadApp';
+import PrivacyPolicy from './components/PrivacyPolicy';
+import TermsAndConditions from './components/TermsAndConditions';
+import AboutUs from './components/AboutUs';
+import ContactUs from './components/ContactUs';
 import { supabaseService, setSupabaseServiceToastHandler, getFallbackUserProfile } from './lib/supabaseService';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -432,6 +436,14 @@ export default function App() {
         setActiveSection('dashboard');
       } else if (hash === '#download' || hash === '#download-app' || hash === '#app') {
         setActiveSection('download');
+      } else if (hash === '#privacy-policy' || hash === '#privacy') {
+        setActiveSection('privacy');
+      } else if (hash === '#terms-and-conditions' || hash === '#terms') {
+        setActiveSection('terms');
+      } else if (hash === '#about-us' || hash === '#about') {
+        setActiveSection('about');
+      } else if (hash === '#contact-us' || hash === '#contact') {
+        setActiveSection('contact');
       }
     };
 
@@ -1987,6 +1999,66 @@ export default function App() {
               </motion.div>
             )}
 
+            {activeSection === 'privacy' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <PrivacyPolicy 
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {activeSection === 'terms' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <TermsAndConditions 
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {activeSection === 'about' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <AboutUs 
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {activeSection === 'contact' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <ContactUs 
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                />
+              </motion.div>
+            )}
+
             {activeSection === 'dashboard' && currentUser && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -2064,10 +2136,18 @@ export default function App() {
           <AdSenseSlot slotType="footer" className="w-full" />
 
           <p>© 2026 Gaming Career Hub. Built for competitive esports calibration. All rights reserved.</p>
-          <div className="flex justify-center gap-4 mt-2 flex-wrap">
+          <div className="flex justify-center gap-x-4 gap-y-2 mt-2 flex-wrap text-[11px]">
             <span className="hover:text-zinc-300 cursor-pointer">Security Code Matrix Verified</span>
             <span>•</span>
             <span className="hover:text-zinc-300 cursor-pointer">Anti-cheat Enlistment active</span>
+            <span>•</span>
+            <a href="#privacy" onClick={() => { window.location.hash = '#privacy'; setActiveSection('privacy'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Privacy Policy</a>
+            <span>•</span>
+            <a href="#terms" onClick={() => { window.location.hash = '#terms'; setActiveSection('terms'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Terms & Conditions</a>
+            <span>•</span>
+            <a href="#about" onClick={() => { window.location.hash = '#about'; setActiveSection('about'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">About Us</a>
+            <span>•</span>
+            <a href="#contact" onClick={() => { window.location.hash = '#contact'; setActiveSection('contact'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Contact Us</a>
             <span>•</span>
             <a href="#admin-panel" onClick={() => { window.location.hash = '#admin-panel'; setActiveSection('admin'); }} className="text-zinc-400 hover:text-white transition-all underline">Admin Control Desk</a>
           </div>

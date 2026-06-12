@@ -73,6 +73,22 @@ export default function SEOManager({
       desc = "Configure your professional gaming profile. Review tournament applications, chat inbox channels, store transactions, and withdrawal records.";
       keywords = "my career folder, withdrawal diamond request, portfolio setup, inbox dashboard";
       robots = "noindex, nofollow"; // Lock dashboard access safely
+    } else if (activeSection === 'privacy') {
+      title = "Privacy Policy & Data Protection Terms | Gaming Career Hub";
+      desc = "Review standard Privacy disclosures, cookie usage guidelines, Google AdSense personalization options, and secure user information treatment on Gaming Career Hub.";
+      keywords = "privacy policy, google cookies, ads personalization, user data safety, adsense verification, gaming career hub";
+    } else if (activeSection === 'terms') {
+      title = "Terms & Conditions & Wallet Protection Policies | Gaming Career Hub";
+      desc = "Browse user agreement policies, diamond wallet topup rules, refund rules, UPI withdrawal guidelines, and fair esports competitive guidelines on Gaming Career Hub.";
+      keywords = "terms of use, wallet restrictions, refunds policy, tournament rules, gamer responsibilities";
+    } else if (activeSection === 'about') {
+      title = "About Us: Elite Esports Calibration Platform | Gaming Career Hub";
+      desc = "Discover our comprehensive tournament administration, player profile stats calibration, team tools, and loyalty rewards portfolios on Gaming Career Hub.";
+      keywords = "about gaming career hub, pro gamer profiles, league management, community calibration";
+    } else if (activeSection === 'contact') {
+      title = "Contact Support Administration & Dispatch Desk | Gaming Career Hub";
+      desc = "Get in touch with support staff for ticket issues, membership activation, dashboard mismatches, and business alignment queries. Contact pkumar15187@gmail.com.";
+      keywords = "contact gaming career hub, open support ticket, esports administration email, upi refund assistance";
     } else if (activeSection === 'admin') {
       title = "Operations Desk | Command Admin Interface";
       desc = "Approve verification requests, audit display ad placements, update store coupon discount programs, and manage backend stats.";
