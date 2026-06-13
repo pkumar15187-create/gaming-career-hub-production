@@ -306,6 +306,72 @@ export const supabaseService = {
     }
   },
 
+  async sendOTP(email: string): Promise<{ error: Error | null }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { error: new Error("Supabase is not configured.") };
+    }
+    try {
+      const cleanEmail = email.trim();
+      const { error } = await supabase.auth.signInWithOtp({
+        email: cleanEmail,
+        options: {
+          shouldCreateUser: true
+        }
+      });
+      if (error) {
+        throw error;
+      }
+      return { error: null };
+    } catch (err: any) {
+      console.error("Supabase sendOTP error:", err);
+      return { error: err };
+    }
+  },
+
+  async verifyOTP(email: string, token: string, usernameHint?: string): Promise<{ user: UserProfile | null; error: Error | null }> {
+    if (!isSupabaseConfigured || !supabase) {
+      return { user: null, error: new Error("Supabase is not configured.") };
+    }
+    const cleanEmail = email.trim();
+    const cleanToken = token.trim();
+    const username = usernameHint || cleanEmail.split('@')[0] || 'gamer';
+    try {
+      console.log("Verifying OTP for:", cleanEmail, "Type: email");
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: 'email'
+      });
+
+      if (error) {
+        console.warn("verifyOtp with type 'email' failed, trying type 'signup':", error.message);
+        const { data: dataSignup, error: errorSignup } = await supabase.auth.verifyOtp({
+          email: cleanEmail,
+          token: cleanToken,
+          type: 'signup'
+        });
+        if (errorSignup) {
+          throw error;
+        }
+        if (dataSignup.user) {
+          await this.syncUserTables(dataSignup.user.id, cleanEmail, username);
+          const userObj = await this.getUserProfileById(dataSignup.user.id);
+          return { user: userObj, error: null };
+        }
+      }
+
+      if (data.user) {
+        await this.syncUserTables(data.user.id, cleanEmail, username);
+        const userObj = await this.getUserProfileById(data.user.id);
+        return { user: userObj, error: null };
+      }
+      return { user: null, error: new Error("OTP verification succeeded but no user session was returned.") };
+    } catch (err: any) {
+      console.error("Supabase verifyOTP error:", err);
+      return { user: null, error: err };
+    }
+  },
+
   async getCurrentSessionUser(): Promise<UserProfile | null> {
     if (isSupabaseConfigured && supabase) {
       try {

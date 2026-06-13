@@ -468,6 +468,116 @@ export default function App() {
   // --- Auth Dialog State ---
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authType, setAuthType] = useState<'login' | 'register'>('login');
+  const [authMethod, setAuthMethod] = useState<'otp' | 'password'>('otp');
+
+  // OTP variables
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpGamerTag, setOtpGamerTag] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+
+  // Clear OTP state on dialog toggle
+  useEffect(() => {
+    if (!showAuthModal) {
+      setOtpSent(false);
+      setOtpCode('');
+      setOtpEmail('');
+      setOtpGamerTag('');
+    }
+  }, [showAuthModal]);
+
+  const handleSendOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSendingOtp) return;
+    if (!otpEmail) {
+      addToast("Please enter an email address.", "warning");
+      return;
+    }
+    setIsSendingOtp(true);
+    try {
+      const { error } = await supabaseService.sendOTP(otpEmail);
+      if (error) {
+        throw error;
+      }
+      setOtpSent(true);
+      addToast("A 6-digit verification code has been dispatched to your email!", "success");
+    } catch (err: any) {
+      console.error("OTP dispatch error:", err);
+      addToast(err?.message || "Failed to dispatch verification code. Please check standard connectivity.", "error");
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isVerifyingOtp) return;
+    if (!otpEmail || !otpCode) {
+      addToast("Email and 6-digit verification code are required.", "warning");
+      return;
+    }
+    setIsVerifyingOtp(true);
+    try {
+      const usernameHint = otpEmail.split('@')[0] || 'gamer';
+      const { user, error } = await supabaseService.verifyOTP(otpEmail, otpCode, usernameHint);
+      if (error) {
+        addToast(error.message || "Invalid or expired code.", "error");
+        return;
+      }
+
+      if (user) {
+        if (user.isBanned) {
+          addToast("Danger: This player account is currently BANNED for competitive cheating.", "error");
+          return;
+        }
+
+        let syncedUser = user;
+        if (otpGamerTag) {
+          try {
+            const updatedUser: UserProfile = {
+              ...user,
+              gamerName: otpGamerTag
+            };
+            const updated = await supabaseService.updateProfile(user.id, updatedUser);
+            if (updated) {
+              syncedUser = updated;
+            }
+          } catch (profileErr) {
+            console.error("Failed to customize username after OTP creation:", profileErr);
+          }
+        }
+
+        setUsers(prev => {
+          const filtered = prev.filter(u => u.id !== syncedUser.id);
+          return [...filtered, syncedUser];
+        });
+
+        setCurrentUserId(syncedUser.id);
+        setShowAuthModal(false);
+        setOtpEmail('');
+        setOtpCode('');
+        setOtpGamerTag('');
+        setOtpSent(false);
+
+        addToast(`Email verified! Welcome back, ${syncedUser.gamerName || 'Gamer'}`, "success");
+
+        if (syncedUser.username === 'Admin') {
+          setActiveSection('admin');
+          window.location.hash = '#admin-panel';
+        } else {
+          setActiveSection('dashboard');
+          window.location.hash = '#dashboard';
+        }
+      }
+    } catch (err: any) {
+      console.error("OTP verification error:", err);
+      addToast(err?.message || "Failed to verify OTP. Please try again.", "error");
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
   // Login variables
   const [loginEmail, setLoginEmail] = useState('');
@@ -2245,200 +2355,469 @@ export default function App() {
 
               {authType === 'login' ? (
                 // Login Form
-                <form onSubmit={handleDemoLogin} className="space-y-4">
-                  <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-850 text-[11px] text-zinc-500 font-mono">
-                    💡 <strong>DEMO LOGIN CHECKS:</strong> You can use standard emails of our initial profiles (e.g. <code>viper@careerhub.gg</code>) with any password to try!
+                <div className="space-y-4">
+                  {/* Method Switch Tabs */}
+                  <div className="grid grid-cols-2 gap-2 bg-zinc-950 p-1 rounded-xl border border-zinc-850">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('otp')}
+                      className={`py-2 text-center rounded-lg text-xs font-bold font-mono tracking-wider transition-all uppercase ${
+                        authMethod === 'otp'
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
+                      }`}
+                    >
+                      ⚡ EMAIL OTP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('password')}
+                      className={`py-2 text-center rounded-lg text-xs font-bold font-mono tracking-wider transition-all uppercase ${
+                        authMethod === 'password'
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
+                      }`}
+                    >
+                      🔑 PASSWORD
+                    </button>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Email / Username</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. viper@careerhub.gg"
-                      className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none font-mono"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                    />
-                  </div>
+                  {authMethod === 'otp' ? (
+                    <div className="space-y-4">
+                      {!otpSent ? (
+                        <form onSubmit={handleSendOtp} className="space-y-4">
+                          <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl text-[11px] text-rose-300 font-mono leading-relaxed">
+                            🛡️ <strong>SECURE ACCESS CORE</strong><br />
+                            Enter your email to receive a single-use 6-digit access OTP code for rapid, secure, passwordless authentication.
+                          </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Passphrase</label>
-                    <input
-                      type="password"
-                      required
-                      placeholder="Any password will pass"
-                      className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none font-mono"
-                      value={loginPass}
-                      onChange={(e) => setLoginPass(e.target.value)}
-                    />
-                  </div>
+                          <div>
+                            <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">EMAIL INSTANCE ADDRESS *</label>
+                            <input
+                              type="email"
+                              required
+                              placeholder="e.g. gamer@gmail.com"
+                              className="w-full bg-zinc-950 border border-zinc-800 text-[11px] text-white focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none font-mono"
+                              value={otpEmail}
+                              onChange={(e) => setOtpEmail(e.target.value)}
+                            />
+                          </div>
 
-                  <button
-                    type="submit"
-                    disabled={isLoggingIn}
-                    className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
-                      isLoggingIn ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
-                    }`}
-                  >
-                    {isLoggingIn ? 'AUTHENTICATING CORRIDORS...' : 'AUTHENTICATE REGISTRY'}
-                  </button>
+                          <button
+                            type="submit"
+                            disabled={isSendingOtp}
+                            className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
+                              isSendingOtp ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
+                            }`}
+                          >
+                            {isSendingOtp ? 'DISPATCHING SECURE SIGNALS...' : 'DISPATCH VERIFICATION OTP CODE'}
+                          </button>
+                        </form>
+                      ) : (
+                        <form onSubmit={handleVerifyOtp} className="space-y-4">
+                          <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl text-[11px] text-emerald-300 font-mono">
+                            ✉️ CODE DISPATCHED TO: <span className="text-white underline font-bold">{otpEmail}</span>
+                          </div>
 
-                  <div className="text-center pt-2">
-                    <p className="text-xs text-zinc-400">
-                      Looking to open an athlete file?{' '}
+                          <div>
+                            <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">6-DIGIT VERIFICATION CODE *</label>
+                            <input
+                              type="text"
+                              required
+                              maxLength={6}
+                              placeholder="e.g. 123456"
+                              className="w-full text-center bg-zinc-950 border border-zinc-800 text-lg tracking-[0.5em] font-black font-mono text-rose-400 focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none"
+                              value={otpCode}
+                              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-[11px] font-mono">
+                            <button
+                              type="button"
+                              onClick={() => setOtpSent(false)}
+                              className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                            >
+                              ← Change Email
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSendOtp}
+                              disabled={isSendingOtp}
+                              className="text-rose-400 hover:text-rose-300 font-bold transition-colors disabled:text-zinc-600"
+                            >
+                              Resend Code
+                            </button>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isVerifyingOtp}
+                            className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
+                              isVerifyingOtp ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
+                            }`}
+                          >
+                            {isVerifyingOtp ? 'DECRYPTON-SYNCING ACCESS...' : 'AUTHENTICATE VERIFICATION CODE'}
+                          </button>
+                        </form>
+                      )}
+
+                      <div className="text-center pt-2 border-t border-zinc-850/50">
+                        <p className="text-xs text-zinc-400">
+                          Need a professional esports athlete account?{' '}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthType('register');
+                              setOtpSent(false);
+                            }}
+                            className="text-rose-400 font-bold hover:underline"
+                          >
+                            Register here
+                          </button>
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleDemoLogin} className="space-y-4">
+                      <div className="bg-zinc-950 p-3 rounded-lg border border-zinc-850 text-[11px] text-zinc-500 font-mono">
+                        💡 <strong>DEMO LOGIN CHECKS:</strong> You can use standard emails of our initial profiles (e.g. <code>viper@careerhub.gg</code>) with any password to try!
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Email / Username</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. viper@careerhub.gg"
+                          className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none font-mono"
+                          value={loginEmail}
+                          onChange={(e) => setLoginEmail(e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Passphrase</label>
+                        <input
+                          type="password"
+                          required
+                          placeholder="Any password will pass"
+                          className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none font-mono"
+                          value={loginPass}
+                          onChange={(e) => setLoginPass(e.target.value)}
+                        />
+                      </div>
+
                       <button
-                        type="button"
-                        onClick={() => setAuthType('register')}
-                        className="text-rose-400 font-bold hover:underline"
+                        type="submit"
+                        disabled={isLoggingIn}
+                        className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
+                          isLoggingIn ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
+                        }`}
                       >
-                        Register details
+                        {isLoggingIn ? 'AUTHENTICATING CORRIDORS...' : 'AUTHENTICATE REGISTRY'}
                       </button>
-                    </p>
-                  </div>
-                </form>
+
+                      <div className="text-center pt-2">
+                        <p className="text-xs text-zinc-400">
+                          Looking to open an athlete file?{' '}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthType('register');
+                              setOtpSent(false);
+                            }}
+                            className="text-rose-400 font-bold hover:underline"
+                          >
+                            Register details
+                          </button>
+                        </p>
+                      </div>
+                    </form>
+                  )}
+                </div>
               ) : (
                 // Signup Form
-                <form onSubmit={handleDemoRegister} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
-                  <div>
-                    <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Username *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. zephyr_champ"
-                      className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3.5 py-2 focus:outline-none"
-                      value={regUser}
-                      onChange={(e) => setRegUser(e.target.value)}
-                    />
+                <div className="space-y-4">
+                  {/* Method Switch Tabs */}
+                  <div className="grid grid-cols-2 gap-2 bg-zinc-950 p-1 rounded-xl border border-zinc-850">
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('otp')}
+                      className={`py-2 text-center rounded-lg text-xs font-bold font-mono tracking-wider transition-all uppercase ${
+                        authMethod === 'otp'
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
+                      }`}
+                    >
+                      ⚡ EMAIL OTP
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuthMethod('password')}
+                      className={`py-2 text-center rounded-lg text-xs font-bold font-mono tracking-wider transition-all uppercase ${
+                        authMethod === 'password'
+                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900 border border-transparent'
+                      }`}
+                    >
+                      🔑 PASSWORD
+                    </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Email *</label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="e.g. test@gmail.com"
-                        className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 outline-none"
-                        value={regEmail}
-                        onChange={(e) => setRegEmail(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Password *</label>
-                      <input
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 outline-none font-mono"
-                        value={regPass}
-                        onChange={(e) => setRegPass(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                  {authMethod === 'otp' ? (
+                    <div className="space-y-4">
+                      {!otpSent ? (
+                        <form onSubmit={handleSendOtp} className="space-y-4">
+                          <div className="bg-rose-500/10 border border-rose-500/20 p-3 rounded-xl text-[11px] text-rose-300 font-mono leading-relaxed">
+                            🛡️ <strong>FAST-TRACK CREATION CORE</strong><br />
+                            Submit your email to create your Gaming Career Hub identity instantly without managing fragile password configurations.
+                          </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Gamer Tag Name *</label>
-                      <input
-                        type="text"
-                        required
-                        placeholder="e.g. ShadowKilla"
-                        className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 focus:outline-none"
-                        value={regGamerTag}
-                        onChange={(e) => setRegGamerTag(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Avatar Image URL</label>
-                      <input
-                        type="url"
-                        placeholder="Optional"
-                        className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 outline-none"
-                        value={regScreenshot}
-                        onChange={(e) => setRegScreenshot(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                          <div>
+                            <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">EMAIL INSTANCE ADDRESS *</label>
+                            <input
+                              type="email"
+                              required
+                              placeholder="e.g. gamer@gmail.com"
+                              className="w-full bg-zinc-950 border border-zinc-800 text-[11px] text-white focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none font-mono"
+                              value={otpEmail}
+                              onChange={(e) => setOtpEmail(e.target.value)}
+                            />
+                          </div>
 
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Country</label>
-                      <input
-                        type="text"
-                        required
-                        className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-2.5 py-2 rounded-xl focus:outline-none"
-                        value={regCountry}
-                        onChange={(e) => setRegCountry(e.target.value)}
-                      />
+                          <div>
+                            <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">CHOOSE GAMER TAG (OPTIONAL)</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. ShadowHunter3000"
+                              className="w-full bg-zinc-950 border border-zinc-800 text-[11px] text-white focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none font-mono"
+                              value={otpGamerTag}
+                              onChange={(e) => setOtpGamerTag(e.target.value)}
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isSendingOtp}
+                            className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
+                              isSendingOtp ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
+                            }`}
+                          >
+                            {isSendingOtp ? 'DISPATCHING REGISTRY SIGNALS...' : 'CONSTRUCT WITH VERIFICATION OTP'}
+                          </button>
+                        </form>
+                      ) : (
+                        <form onSubmit={handleVerifyOtp} className="space-y-4">
+                          <div className="bg-emerald-500/10 border border-emerald-500/20 p-3 rounded-xl text-[11px] text-emerald-300 font-mono">
+                            ✉️ CODE DISPATCHED TO: <span className="text-white underline font-bold">{otpEmail}</span>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">6-DIGIT VERIFICATION CODE *</label>
+                            <input
+                              type="text"
+                              required
+                              maxLength={6}
+                              placeholder="e.g. 123456"
+                              className="w-full text-center bg-zinc-950 border border-zinc-800 text-lg tracking-[0.5em] font-black font-mono text-rose-400 focus:border-rose-500 rounded-xl px-4 py-2.5 outline-none"
+                              value={otpCode}
+                              onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            />
+                          </div>
+
+                          <div className="flex justify-between text-[11px] font-mono">
+                            <button
+                              type="button"
+                              onClick={() => setOtpSent(false)}
+                              className="text-zinc-500 hover:text-zinc-300 transition-colors"
+                            >
+                              ← Change Email
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSendOtp}
+                              disabled={isSendingOtp}
+                              className="text-rose-400 hover:text-rose-300 font-bold transition-colors disabled:text-zinc-600"
+                            >
+                              Resend Code
+                            </button>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={isVerifyingOtp}
+                            className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
+                              isVerifyingOtp ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
+                            }`}
+                          >
+                            {isVerifyingOtp ? 'DECRYPTON-SYNCING REGISTRY...' : 'CONFIRM IDENTITY OTP'}
+                          </button>
+                        </form>
+                      )}
+
+                      <div className="text-center pt-2 border-t border-zinc-850/50">
+                        <p className="text-xs text-zinc-400">
+                          Already have an operator file?{' '}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthType('login');
+                              setOtpSent(false);
+                            }}
+                            className="text-rose-400 font-bold hover:underline"
+                          >
+                            Login gateways
+                          </button>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">State</label>
-                      <input
-                        type="text"
-                        required
-                        className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-2.5 py-2 rounded-xl focus:outline-none"
-                        value={regState}
-                        onChange={(e) => setRegState(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">City</label>
-                      <input
-                        type="text"
-                        required
-                        className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-2.5 py-2 rounded-xl focus:outline-none"
-                        value={regCity}
-                        onChange={(e) => setRegCity(e.target.value)}
-                      />
-                    </div>
-                  </div>
+                  ) : (
+                    <form onSubmit={handleDemoRegister} className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+                      <div>
+                        <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Username *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="e.g. zephyr_champ"
+                          className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3.5 py-2 focus:outline-none"
+                          value={regUser}
+                          onChange={(e) => setRegUser(e.target.value)}
+                        />
+                      </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Bio Summary</label>
-                    <textarea
-                      placeholder="Explain your gaming specializations, roles, historical teams..."
-                      className="w-full bg-zinc-950 border border-zinc-800 text-xs p-3 text-white focus:outline-none focus:border-rose-500 rounded-xl"
-                      rows={2}
-                      value={regBio}
-                      onChange={(e) => setRegBio(e.target.value)}
-                    />
-                  </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Email *</label>
+                          <input
+                            type="email"
+                            required
+                            placeholder="e.g. test@gmail.com"
+                            className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 outline-none"
+                            value={regEmail}
+                            onChange={(e) => setRegEmail(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Password *</label>
+                          <input
+                            type="password"
+                            required
+                            placeholder="••••••••"
+                            className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 outline-none font-mono"
+                            value={regPass}
+                            onChange={(e) => setRegPass(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div>
-                    <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Referral Code (Optional)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. VIPER999"
-                      className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3.5 py-2 outline-none font-mono"
-                      value={referredByCode}
-                      onChange={(e) => setReferredByCode(e.target.value)}
-                    />
-                  </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Gamer Tag Name *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="e.g. ShadowKilla"
+                            className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 focus:outline-none"
+                            value={regGamerTag}
+                            onChange={(e) => setRegGamerTag(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Avatar Image URL</label>
+                          <input
+                            type="url"
+                            placeholder="Optional"
+                            className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3 py-2 outline-none"
+                            value={regScreenshot}
+                            onChange={(e) => setRegScreenshot(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <button
-                    type="submit"
-                    disabled={isRegistering}
-                    className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
-                      isRegistering ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
-                    }`}
-                  >
-                    {isRegistering ? 'CONSTRUCTING PROFILE...' : 'CONSTRUCT GAMER PROFILE'}
-                  </button>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Country</label>
+                          <input
+                            type="text"
+                            required
+                            className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-2.5 py-2 rounded-xl focus:outline-none"
+                            value={regCountry}
+                            onChange={(e) => setRegCountry(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">State</label>
+                          <input
+                            type="text"
+                            required
+                            className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-2.5 py-2 rounded-xl focus:outline-none"
+                            value={regState}
+                            onChange={(e) => setRegState(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">City</label>
+                          <input
+                            type="text"
+                            required
+                            className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white px-2.5 py-2 rounded-xl focus:outline-none"
+                            value={regCity}
+                            onChange={(e) => setRegCity(e.target.value)}
+                          />
+                        </div>
+                      </div>
 
-                  <div className="text-center pt-1.5">
-                    <p className="text-xs text-zinc-400">
-                      Already have an operator file?{' '}
+                      <div>
+                        <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Bio Summary</label>
+                        <textarea
+                          placeholder="Explain your gaming specializations, roles, historical teams..."
+                          className="w-full bg-zinc-950 border border-zinc-800 text-xs p-3 text-white focus:outline-none focus:border-rose-500 rounded-xl"
+                          rows={2}
+                          value={regBio}
+                          onChange={(e) => setRegBio(e.target.value)}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-mono tracking-widest text-zinc-500 uppercase mb-1">Referral Code (Optional)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. VIPER999"
+                          className="w-full bg-zinc-950 border border-zinc-800 text-xs text-white focus:border-rose-500 rounded-xl px-3.5 py-2 outline-none font-mono"
+                          value={referredByCode}
+                          onChange={(e) => setReferredByCode(e.target.value)}
+                        />
+                      </div>
+
                       <button
-                        type="button"
-                        onClick={() => setAuthType('login')}
-                        className="text-rose-400 font-bold hover:underline"
+                        type="submit"
+                        disabled={isRegistering}
+                        className={`w-full text-white font-black py-3 rounded-xl text-xs font-mono tracking-widest uppercase transition-all ${
+                          isRegistering ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed' : 'bg-rose-500 hover:bg-rose-600 neon-glow-pink cursor-pointer'
+                        }`}
                       >
-                        Login gateways
+                        {isRegistering ? 'CONSTRUCTING PROFILE...' : 'CONSTRUCT GAMER PROFILE'}
                       </button>
-                    </p>
-                  </div>
-                </form>
+
+                      <div className="text-center pt-1.5">
+                        <p className="text-xs text-zinc-400">
+                          Already have an operator file?{' '}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthType('login');
+                              setOtpSent(false);
+                            }}
+                            className="text-rose-400 font-bold hover:underline"
+                          >
+                            Login gateways
+                          </button>
+                        </p>
+                      </div>
+                    </form>
+                  )}
+                </div>
               )}
             </motion.div>
           </div>
