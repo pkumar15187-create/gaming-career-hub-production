@@ -2446,7 +2446,16 @@ export default function App() {
       </AnimatePresence>
 
       {/* Floating Bottom-Right Dev Debug Panel */}
-      <div className="fixed bottom-4 right-4 z-50 bg-black/90 border border-zinc-805 rounded-xl p-3 shadow-xl max-w-xs font-mono text-[10px] text-zinc-400">
+      <div 
+        className="fixed bottom-4 right-4 z-50 bg-black/90 border border-zinc-805 rounded-xl p-3 shadow-xl max-w-xs font-mono text-[10px] text-zinc-400"
+        style={{
+          display: (typeof window !== 'undefined' && (
+            window.location.search.includes('dev=true') || 
+            window.location.hash.includes('dev=true') || 
+            localStorage.getItem('show_dev_meter') === 'true'
+          )) ? 'block' : 'none'
+        }}
+      >
         <div className="flex items-center justify-between border-b border-zinc-850 pb-1.5 mb-1.5">
           <span className="font-bold text-rose-500 uppercase tracking-widest text-[9px]">DEV AUTHMETER</span>
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>

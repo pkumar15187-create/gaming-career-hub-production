@@ -205,10 +205,9 @@ export const supabaseService = {
     if (!isSupabaseConfigured || !supabase) {
       return { user: null, error: new Error("Supabase is not configured.") };
     }
+    const cleanEmail = email.trim();
+    const cleanUsername = username.trim();
     try {
-      const cleanEmail = email.trim();
-      const cleanUsername = username.trim();
-
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
@@ -231,7 +230,40 @@ export const supabaseService = {
       }
       return { user: null, error: new Error("User structure was not returned on creation.") };
     } catch (err: any) {
-      console.error("Supabase user registration sync error:", err);
+      const errMsg = err?.message || err?.toString() || '';
+      const isAlreadyRegistered = 
+        errMsg.toLowerCase().includes("already registered") || 
+        errMsg.toLowerCase().includes("email_exists") || 
+        errMsg.toLowerCase().includes("user_already_exists") ||
+        errMsg.toLowerCase().includes("user already exists") ||
+        errMsg.toLowerCase().includes("already_registered");
+
+      if (isAlreadyRegistered) {
+        console.warn("Supabase user registration: User already registered check triggered:", errMsg);
+      } else {
+        console.error("Supabase user registration sync error:", err);
+      }
+
+      if (isAlreadyRegistered) {
+        try {
+          console.log("Email already registered. Trying silent login fallback for:", cleanEmail);
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: password
+          });
+          if (signInError) {
+            return { user: null, error: new Error("This email is already registered on Gaming Career Hub. Please use a different email or provide the correct password.") };
+          }
+          if (signInData.user) {
+            await this.syncUserTables(signInData.user.id, cleanEmail, cleanUsername);
+            const userObj = await this.getUserProfileById(signInData.user.id);
+            return { user: userObj, error: null };
+          }
+        } catch (loginErr) {
+          // Fall through to general error
+        }
+        return { user: null, error: new Error("This email is already registered. Please login or check your credentials.") };
+      }
       return { user: null, error: err };
     }
   },
