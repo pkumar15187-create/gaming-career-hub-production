@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { UserProfile, Team, Tournament, SponsorApplication, Notification, AdminSettings, DbTournamentRegistration, FeaturedItem } from './types';
+import { UserProfile, Team, Tournament, SponsorApplication, Notification, AdminSettings, DbTournamentRegistration, FeaturedItem, AdminOffer } from './types';
 import {
   INITIAL_USERS,
   INITIAL_TEAMS,
@@ -7,6 +7,7 @@ import {
   INITIAL_SPONSORS,
   INITIAL_NOTIFICATIONS,
   INITIAL_ADMIN_SETTINGS,
+  INITIAL_OFFERS,
   loadData,
   saveData
 } from './initialData';
@@ -29,6 +30,16 @@ import PrivacyPolicy from './components/PrivacyPolicy';
 import TermsAndConditions from './components/TermsAndConditions';
 import AboutUs from './components/AboutUs';
 import ContactUs from './components/ContactUs';
+import Disclaimer from './components/Disclaimer';
+import RefundPolicy from './components/RefundPolicy';
+import BlogSection from './components/BlogSection';
+import { Article, articles } from './data/articles';
+import { FAQItem } from './types';
+import { INITIAL_FAQS } from './data/faqs';
+import FaqCenter from './components/FaqCenter';
+
+import HomeAdditions from './components/HomeAdditions';
+import HomeLanding from './components/HomeLanding';
 import { supabaseService, setSupabaseServiceToastHandler, getFallbackUserProfile } from './lib/supabaseService';
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient';
 
@@ -57,7 +68,8 @@ import {
   Menu,
   X,
   Plus,
-  Smartphone
+  Smartphone,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -70,7 +82,47 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>(() => loadData('gh_notifications', INITIAL_NOTIFICATIONS));
   const [adminSettings, setAdminSettings] = useState<AdminSettings[]>(() => loadData('gh_admin_settings', [INITIAL_ADMIN_SETTINGS])) as any;
   const [registrations, setRegistrations] = useState<DbTournamentRegistration[]>(() => loadData('gh_tournament_registrations', []));
+  const [offers, setOffers] = useState<AdminOffer[]>(() => loadData('gh_offers', INITIAL_OFFERS));
   const [featuredItems, setFeaturedItems] = useState<FeaturedItem[]>([]);
+  const [blogArticles, setBlogArticles] = useState<Article[]>(() => loadData('gh_blog_articles', articles));
+  const [faqItems, setFaqItems] = useState<FAQItem[]>(() => loadData('gh_faq_items', INITIAL_FAQS));
+
+  const handleCreateBlogArticle = (newArt: Article) => {
+    const updated = [newArt, ...blogArticles];
+    setBlogArticles(updated);
+    localStorage.setItem('gh_blog_articles', JSON.stringify(updated));
+  };
+
+  const handleUpdateBlogArticle = (id: string, updates: Partial<Article>) => {
+    const updated = blogArticles.map(art => art.id === id ? { ...art, ...updates } : art);
+    setBlogArticles(updated);
+    localStorage.setItem('gh_blog_articles', JSON.stringify(updated));
+  };
+
+  const handleDeleteBlogArticle = (id: string) => {
+    const updated = blogArticles.filter(art => art.id !== id);
+    setBlogArticles(updated);
+    localStorage.setItem('gh_blog_articles', JSON.stringify(updated));
+  };
+
+  const handleCreateFAQ = (newFaq: FAQItem) => {
+    const updated = [newFaq, ...faqItems];
+    setFaqItems(updated);
+    localStorage.setItem('gh_faq_items', JSON.stringify(updated));
+  };
+
+  const handleUpdateFAQ = (id: string, updates: Partial<FAQItem>) => {
+    const updated = faqItems.map(faq => faq.id === id ? { ...faq, ...updates } : faq);
+    setFaqItems(updated);
+    localStorage.setItem('gh_faq_items', JSON.stringify(updated));
+  };
+
+  const handleDeleteFAQ = (id: string) => {
+    const updated = faqItems.filter(faq => faq.id !== id);
+    setFaqItems(updated);
+    localStorage.setItem('gh_faq_items', JSON.stringify(updated));
+  };
+
 
   // Since we load adminSettings as array or single object safely
   const actualAdminSettings: AdminSettings = Array.isArray(adminSettings) ? adminSettings[0] || INITIAL_ADMIN_SETTINGS : adminSettings || INITIAL_ADMIN_SETTINGS;
@@ -118,7 +170,9 @@ export default function App() {
 
   // --- Router & Path Listening State ---
   const [activeSection, setActiveSection] = useState<string>('home');
+  const [selectedBlogSlug, setSelectedBlogSlug] = useState<string>('');
   const [presetSponsorGamerName, setPresetSponsorGamerName] = useState<string>(''); // prefab prefill sponsor zone
+  const [showMobileLegalMenu, setShowMobileLegalMenu] = useState<boolean>(false);
 
   const [dashboardInitialTab, setDashboardInitialTab] = useState<string>('profile');
   const [dashboardInitialConversationUserId, setDashboardInitialConversationUserId] = useState<string | null>(null);
@@ -260,12 +314,6 @@ export default function App() {
               }
               return prev.map(u => u.id === activeSessionUser.id ? activeSessionUser : u);
             });
-
-            // Redirect logged-in users to #dashboard
-            if (window.location.hash !== '#dashboard' && window.location.hash !== '#admin-panel') {
-              window.location.hash = '#dashboard';
-              setActiveSection('dashboard');
-            }
           }
         } else {
           setCurrentUserId(null);
@@ -317,6 +365,12 @@ export default function App() {
       saveData('gh_admin_settings', actualAdminSettings); 
     }
   }, [actualAdminSettings]);
+
+  useEffect(() => { 
+    if (!isSupabaseConfigured) {
+      saveData('gh_offers', offers); 
+    }
+  }, [offers]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -404,7 +458,56 @@ export default function App() {
 
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash;
+      let hash = window.location.hash;
+      const path = window.location.pathname;
+
+      if (path === '/dashboard') {
+        hash = '#dashboard';
+        if (window.location.hash !== '#dashboard') {
+          window.location.hash = '#dashboard';
+        }
+      } else if (path === '/admin-panel') {
+        hash = '#admin-panel';
+        if (window.location.hash !== '#admin-panel') {
+          window.location.hash = '#admin-panel';
+        }
+      } else if (path === '/privacy-policy') {
+        hash = '#privacy-policy';
+        if (window.location.hash !== '#privacy-policy') {
+          window.location.hash = '#privacy-policy';
+        }
+      } else if (path === '/terms-and-conditions') {
+        hash = '#terms-and-conditions';
+        if (window.location.hash !== '#terms-and-conditions') {
+          window.location.hash = '#terms-and-conditions';
+        }
+      } else if (path === '/about-us') {
+        hash = '#about-us';
+        if (window.location.hash !== '#about-us') {
+          window.location.hash = '#about-us';
+        }
+      } else if (path === '/contact-us') {
+        hash = '#contact-us';
+        if (window.location.hash !== '#contact-us') {
+          window.location.hash = '#contact-us';
+        }
+      } else if (path === '/disclaimer') {
+        hash = '#disclaimer';
+        if (window.location.hash !== '#disclaimer') {
+          window.location.hash = '#disclaimer';
+        }
+      } else if (path === '/refund-policy') {
+        hash = '#refund-policy';
+        if (window.location.hash !== '#refund-policy') {
+          window.location.hash = '#refund-policy';
+        }
+      } else if (path === '/faq' || path === '/help') {
+        hash = '#faq';
+        if (window.location.hash !== '#faq') {
+          window.location.hash = '#faq';
+        }
+      }
+
       if (hash === '#admin-panel') {
         setActiveSection('admin');
       } else if (hash.startsWith('#gamer/')) {
@@ -444,6 +547,19 @@ export default function App() {
         setActiveSection('about');
       } else if (hash === '#contact-us' || hash === '#contact') {
         setActiveSection('contact');
+      } else if (hash === '#disclaimer') {
+        setActiveSection('disclaimer');
+      } else if (hash === '#refund-policy' || hash === '#refund') {
+        setActiveSection('refund');
+      } else if (hash === '#faq' || hash === '#help' || hash === '#help-center') {
+        setActiveSection('faq');
+      } else if (hash.startsWith('#blog')) {
+        setActiveSection('blog');
+        if (hash.startsWith('#blog/')) {
+          setSelectedBlogSlug(hash.split('#blog/')[1]);
+        } else {
+          setSelectedBlogSlug('');
+        }
       }
     };
 
@@ -1796,10 +1912,11 @@ export default function App() {
                 <a href="#home" className={`hover:text-rose-400 transition-colors ${activeSection === 'home' ? 'text-rose-500 font-extrabold' : 'text-zinc-400'}`}>HOME</a>
                 <a href="#profiles" className={`hover:text-rose-400 transition-colors ${activeSection === 'directory' ? 'text-rose-500 font-extrabold' : 'text-zinc-400'}`}>GAMER DIRECTORY</a>
                 <a href="#teams" className={`hover:text-rose-400 transition-colors ${activeSection === 'teams' ? 'text-rose-500 font-extrabold' : 'text-zinc-400'}`}>SQUAD FINDER</a>
-                <a href="#tournaments" className={`hover:text-rose-400 transition-colors ${activeSection === 'tournaments' ? 'text-rose-500 font-extrabold' : 'text-zinc-400'}`}>ARENA MEETUPS</a>
-                <a href="#leaderboard" className={`hover:text-rose-400 transition-colors ${activeSection === 'leaderboard' ? 'text-rose-500 font-extrabold' : 'text-zinc-400'}`}>GLOBAL STANDINGS</a>
+                <a href="#tournaments" className={`hover:text-rose-400 transition-colors ${activeSection === 'tournaments' ? 'text-rose-505 text-rose-500 font-extrabold' : 'text-zinc-400'}`}>ARENA MEETUPS</a>
+                <a href="#leaderboard" className={`hover:text-rose-400 transition-colors ${activeSection === 'leaderboard' ? 'text-rose-505 text-rose-500 font-extrabold' : 'text-zinc-400'}`}>GLOBAL STANDINGS</a>
                 <a href="#badges" className={`hover:text-rose-400 transition-colors ${activeSection === 'achievements' ? 'text-rose-500 font-extrabold' : 'text-zinc-400'}`}>BADGES CHEST</a>
                 <a href="#sponsors" className={`hover:text-rose-400 transition-colors ${activeSection === 'sponsors' ? 'text-rose-500 font-extrabold' : 'text-zinc-400'}`}>SPONSORS ZONE</a>
+                <a href="#blog" className={`hover:text-rose-400 transition-colors ${activeSection === 'blog' ? 'text-rose-550 text-rose-500 font-extrabold' : 'text-zinc-400'}`}>ARTICLES FEED</a>
                 <a href="#download" className={`hover:text-rose-400 transition-colors flex items-center gap-1.5 text-[10px] bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1.5 rounded-lg border border-rose-500/10 ${activeSection === 'download' ? 'text-rose-500 font-extrabold border-rose-500/35' : 'text-zinc-400'}`}>📲 NATIVE APP</a>
               </>
             )}
@@ -1862,130 +1979,29 @@ export default function App() {
                 className="space-y-12"
               >
                 {/* AdSense-ready homepage ad slot */}
-                <AdSenseSlot slotType="home" className="w-full" />
+                <AdSenseSlot slotType="home" className="w-full" activeSection={activeSection} />
 
-                {/* Hero Banner with Futuristic graphics */}
-                <div className="p-8 md:p-12 bg-zinc-900 border border-zinc-800/80 rounded-3xl relative overflow-hidden flex flex-col justify-between space-y-6 md:min-h-[400px]">
-                  {/* Glowing background circles */}
-                  <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
-                  <div className="absolute bottom-0 left-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-                  <div className="space-y-3 max-w-2xl">
-                    <span className="text-xs font-mono font-bold uppercase tracking-widest text-rose-500 bg-rose-500/15 border border-rose-500/25 px-3 py-1 rounded-full animate-bounce">
-                      🚀 UNLEASH ESCORES CAREERS
-                    </span>
-                    <h1 className="text-4.5xl md:text-5.5xl font-black font-display text-white tracking-tight leading-none uppercase">
-                      BUILD YOUR WORLD CLASS <span className="text-rose-500 neon-text-pink">GAMER PROFILE</span>
-                    </h1>
-                    <p className="text-zinc-400 text-sm md:text-base leading-relaxed pt-2">
-                      Get drafted, recruit players, register for verified cash-prize arena tournaments, and pitch sponsor programs directly to global esports executives.
-                    </p>
-                  </div>
-
-                  {/* Immediate actions */}
-                  <div className="flex flex-wrap gap-4 pt-4 shrink-0">
-                    <button
-                      onClick={() => { window.location.hash = '#profiles'; setActiveSection('directory'); }}
-                      className="bg-rose-500 hover:bg-rose-600 text-white font-bold font-mono text-xs px-6 py-3.5 rounded-xl uppercase tracking-wider transition-all neon-glow-pink"
-                    >
-                      EXPLORE DIRECTORY
-                    </button>
-                    {!currentUser && (
-                      <button
-                        onClick={() => { setAuthType('register'); setShowAuthModal(true); }}
-                        className="bg-zinc-950/80 border border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white font-bold font-mono text-xs px-6 py-3.5 rounded-xl uppercase tracking-wider transition-all"
-                      >
-                        CONSTRUCT PORTFOLIO ID
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Core counters matrix */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center font-mono">
-                  <div className="bg-zinc-900/40 p-4 border border-zinc-850 rounded-xl">
-                    <p className="text-2xl font-black text-rose-500">₹10 Lakhs+</p>
-                    <p className="text-[10px] text-zinc-500 uppercase mt-0.5 font-bold">Tournament Pool Pools</p>
-                  </div>
-                  <div className="bg-zinc-900/40 p-4 border border-zinc-850 rounded-xl">
-                    <p className="text-2xl font-black text-cyan-400">1,200+</p>
-                    <p className="text-[10px] text-zinc-500 uppercase mt-0.5 font-bold">Active Tactical Gamers</p>
-                  </div>
-                  <div className="bg-zinc-900/40 p-4 border border-zinc-850 rounded-xl">
-                    <p className="text-2xl font-black text-amber-400">45+</p>
-                    <p className="text-[10px] text-zinc-500 uppercase mt-0.5 font-bold">Verified Esports Squads</p>
-                  </div>
-                  <div className="bg-zinc-900/40 p-4 border border-zinc-850 rounded-xl">
-                    <p className="text-2xl font-black text-emerald-400">12+</p>
-                    <p className="text-[10px] text-zinc-500 uppercase mt-0.5 font-bold">Verified Scouting Brands</p>
-                  </div>
-                </div>
-
-                {/* Featured players / clans / tournaments Carousels */}
-                <FeaturedPromotion
-                  featuredItems={featuredItems}
-                  users={users}
-                  teams={teams}
+                <HomeLanding 
+                  currentUser={currentUser}
                   tournaments={tournaments}
-                  onNavigateToUser={(userId) => {
-                    window.location.hash = '#profiles';
-                    setActiveSection('directory');
+                  offers={offers}
+                  onAuthAction={(type) => {
+                    setAuthType(type);
+                    setShowAuthModal(true);
                   }}
-                  onNavigateToTeam={(teamId) => {
-                    window.location.hash = '#teams';
-                    setActiveSection('teams');
+                  onNavigateSection={(section) => {
+                    // Update hash route
+                    if (section === 'faq') {
+                      window.location.hash = '#faq';
+                    } else if (section === 'blog') {
+                      window.location.hash = '#blog';
+                    }
+                    setActiveSection(section);
                   }}
-                  onNavigateToTournament={(tourney) => {
-                    window.location.hash = '#tournaments';
-                    setActiveSection('tournaments');
-                  }}
+                  addToast={addToast}
+                  blogArticles={blogArticles}
+                  faqItems={faqItems}
                 />
-
-                {/* Feature highlight cards */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-extrabold text-white font-display flex items-center gap-2 italic pb-2 border-b border-zinc-900/80">
-                    <Laptop className="w-5 h-5 text-rose-500" />
-                    CORE CAREER TRACKS
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="p-5 bg-zinc-900/50 border border-zinc-805/85 rounded-2xl flex flex-col justify-between h-48 hover:border-zinc-700 transition-colors">
-                      <div>
-                        <h4 className="text-base font-extrabold text-white tracking-wide">1. Gamer Portfolio Sheet</h4>
-                        <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed italic">"Display verified game ratios, badges milestones, and embed high-impact streaming videos."</p>
-                      </div>
-                      <a href="#profiles" className="text-rose-400 font-mono text-xs hover:underline flex items-center gap-0.5 mt-2">Discover Players <ChevronRight className="w-4 h-4" /></a>
-                    </div>
-
-                    <div className="p-5 bg-zinc-900/50 border border-zinc-805/85 rounded-2xl flex flex-col justify-between h-48 hover:border-zinc-700 transition-colors">
-                      <div>
-                        <h4 className="text-base font-extrabold text-white tracking-wide">2. Roster Recruitments</h4>
-                        <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed italic font-sans">"Build professional squads, recruit specific active operators, and enlist into official challenger brackets tracker."</p>
-                      </div>
-                      <a href="#teams" className="text-rose-400 font-mono text-xs hover:underline flex items-center gap-0.5 mt-2">Find Squad <ChevronRight className="w-4 h-4" /></a>
-                    </div>
-
-                    <div className="p-5 bg-zinc-900/50 border border-zinc-805/85 rounded-2xl flex flex-col justify-between h-48 hover:border-zinc-700 transition-colors">
-                      <div>
-                        <h4 className="text-base font-extrabold text-white tracking-wide">3. Corporate Sponsorship</h4>
-                        <p className="text-zinc-400 text-xs mt-1.5 leading-relaxed italic">"Enlist to pitch specialized campaigns directly to brands such as Intel, RedBull, Asus ROG."</p>
-                      </div>
-                      <a href="#sponsors" className="text-rose-400 font-mono text-xs hover:underline flex items-center gap-0.5 mt-2">Connect Brands <ChevronRight className="w-4 h-4" /></a>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live Activity Ticker Feed Section */}
-                <div className="p-4 bg-zinc-950/60 border border-zinc-900 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    <span className="flex items-center gap-1.5 text-xs font-mono font-bold text-rose-500 uppercase tracking-widest bg-rose-500/10 px-2.5 py-1 rounded">
-                      <Zap className="w-3.5 h-3.5 animate-pulse" />
-                      LIVE FEED
-                    </span>
-                    <marquee className="text-xs text-zinc-400 font-mono italic flex-grow" scrollamount="4">
-                      +++ APEXVIPER SIGNED UP FOR RADIANT ARENA TOURNAMENT... ZEPHYR_PRO SECURED PERIPHERAL BACKING WITH CORSAIR MECHANICAL LABS... VELOCITY ESPORTS RECRUITED FORWARD ASSAULTER... SQUAD CODES 'GAMER10' LOADED FOR LIFETIME PASS +++
-                    </marquee>
-                  </div>
-                </div>
               </motion.div>
             )}
 
@@ -2169,6 +2185,75 @@ export default function App() {
               </motion.div>
             )}
 
+            {activeSection === 'disclaimer' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <Disclaimer 
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {activeSection === 'refund' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <RefundPolicy 
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                />
+              </motion.div>
+            )}
+
+            {activeSection === 'faq' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <FaqCenter 
+                  faqItems={faqItems}
+                  currentUser={currentUser}
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                  addToast={addToast}
+                />
+              </motion.div>
+            )}
+
+            {activeSection === 'blog' && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <BlogSection 
+                  onBackToPortal={() => {
+                    window.location.hash = '#home';
+                    setActiveSection('home');
+                  }}
+                  onSelectArticleBySlug={(slug) => {
+                    setSelectedBlogSlug(slug);
+                  }}
+                  initialSlug={selectedBlogSlug}
+                  addToast={addToast}
+                  blogArticles={blogArticles}
+                />
+              </motion.div>
+            )}
+
             {activeSection === 'dashboard' && currentUser && (
               <motion.div
                 initial={{ opacity: 0 }}
@@ -2234,6 +2319,16 @@ export default function App() {
                   onUpdateTournamentRegistrationStatus={handleUpdateRegistrationStatus}
                   onUpdateTournament={handleUpdateTournament}
                   onAdminRemoveRegistrationStatus={handleAdminRemoveRegistration}
+                  offers={offers}
+                  onUpdateOffers={setOffers}
+                  blogArticles={blogArticles}
+                  onCreateBlogArticle={handleCreateBlogArticle}
+                  onUpdateBlogArticle={handleUpdateBlogArticle}
+                  onDeleteBlogArticle={handleDeleteBlogArticle}
+                  faqItems={faqItems}
+                  onCreateFAQ={handleCreateFAQ}
+                  onUpdateFAQ={handleUpdateFAQ}
+                  onDeleteFAQ={handleDeleteFAQ}
                 />
               </motion.div>
             )}
@@ -2243,27 +2338,35 @@ export default function App() {
         {/* Global Footer */}
         <footer className="bg-zinc-950 border-t border-zinc-900 py-6 px-6 text-center text-xs text-zinc-500 font-mono space-y-4">
           {/* AdSense-ready platform footer slot */}
-          <AdSenseSlot slotType="footer" className="w-full" />
+          <AdSenseSlot slotType="footer" className="w-full" activeSection={activeSection} />
 
           <p>© 2026 Gaming Career Hub. Built for competitive esports calibration. All rights reserved.</p>
           <div className="flex justify-center gap-x-4 gap-y-2 mt-2 flex-wrap text-[11px]">
             <span className="hover:text-zinc-300 cursor-pointer">Security Code Matrix Verified</span>
             <span>•</span>
-            <span className="hover:text-zinc-300 cursor-pointer">Anti-cheat Enlistment active</span>
+            <span className="hover:text-zinc-300 cursor-pointer">Anti-cheat active</span>
             <span>•</span>
-            <a href="#privacy" onClick={() => { window.location.hash = '#privacy'; setActiveSection('privacy'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Privacy Policy</a>
+            <a href="#privacy-policy" onClick={() => { window.location.hash = '#privacy-policy'; setActiveSection('privacy'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Privacy Policy</a>
             <span>•</span>
-            <a href="#terms" onClick={() => { window.location.hash = '#terms'; setActiveSection('terms'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Terms & Conditions</a>
+            <a href="#terms-and-conditions" onClick={() => { window.location.hash = '#terms-and-conditions'; setActiveSection('terms'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Terms & Conditions</a>
             <span>•</span>
-            <a href="#about" onClick={() => { window.location.hash = '#about'; setActiveSection('about'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">About Us</a>
+            <a href="#about-us" onClick={() => { window.location.hash = '#about-us'; setActiveSection('about'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">About Us</a>
             <span>•</span>
-            <a href="#contact" onClick={() => { window.location.hash = '#contact'; setActiveSection('contact'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Contact Us</a>
+            <a href="#contact-us" onClick={() => { window.location.hash = '#contact-us'; setActiveSection('contact'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Contact Us</a>
+            <span>•</span>
+            <a href="#disclaimer" onClick={() => { window.location.hash = '#disclaimer'; setActiveSection('disclaimer'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Disclaimer</a>
+            <span>•</span>
+            <a href="#refund-policy" onClick={() => { window.location.hash = '#refund-policy'; setActiveSection('refund'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline">Refund Policy</a>
+            <span>•</span>
+            <a href="#blog" onClick={() => { window.location.hash = '#blog'; setActiveSection('blog'); }} className="text-rose-400 hover:text-rose-300 font-bold transition-all underline font-serif">Articles Feed</a>
+            <span>•</span>
+            <a href="#faq" onClick={() => { window.location.hash = '#faq'; setActiveSection('faq'); }} className="text-rose-400 hover:text-indigo-400 font-bold transition-all underline">FAQ & Help Center</a>
             <span>•</span>
             <a href="#admin-panel" onClick={() => { window.location.hash = '#admin-panel'; setActiveSection('admin'); }} className="text-zinc-400 hover:text-white transition-all underline">Admin Control Desk</a>
           </div>
           
           {/* AdSense-ready mobile sticky ad slot */}
-          <AdSenseSlot slotType="mobile_sticky" className="w-full" />
+          <AdSenseSlot slotType="mobile_sticky" className="w-full" activeSection={activeSection} />
         </footer>
 
         {/* Mobile Navigation Bar - Fixed layout bottom for viewing convenience */}
@@ -2323,7 +2426,79 @@ export default function App() {
             <Smartphone className="w-4 h-4" />
             <span>App</span>
           </button>
+
+          <button
+            onClick={() => setShowMobileLegalMenu(!showMobileLegalMenu)}
+            className={`flex flex-col items-center gap-1.5 flex-1 ${showMobileLegalMenu ? 'text-rose-500' : 'text-zinc-400'}`}
+          >
+            <ShieldAlert className="w-4 h-4" />
+            <span>Legal</span>
+          </button>
         </nav>
+
+        {showMobileLegalMenu && (
+          <div className="lg:hidden fixed bottom-20 left-4 right-4 z-50 bg-black/95 border border-zinc-850 rounded-2xl p-4 shadow-2xl backdrop-blur-md space-y-3 font-mono">
+            <div className="flex justify-between items-center border-b border-zinc-900 pb-2">
+              <span className="text-xs text-white tracking-widest uppercase font-black flex items-center gap-1">
+                <ShieldAlert className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                Legal & Support Desk
+              </span>
+              <button 
+                onClick={() => setShowMobileLegalMenu(false)}
+                className="text-zinc-400 hover:text-white p-1 rounded bg-zinc-900/50"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-300">
+              <a 
+                href="#privacy-policy" 
+                onClick={() => { window.location.hash = '#privacy-policy'; setActiveSection('privacy'); setShowMobileLegalMenu(false); }} 
+                className="p-2 py-2.5 bg-zinc-900/70 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all flex items-center gap-1 justify-center font-bold"
+              >
+                🛡️ Privacy Policy
+              </a>
+              <a 
+                href="#terms-and-conditions" 
+                onClick={() => { window.location.hash = '#terms-and-conditions'; setActiveSection('terms'); setShowMobileLegalMenu(false); }} 
+                className="p-2 py-2.5 bg-zinc-900/70 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all flex items-center gap-1 justify-center font-bold"
+              >
+                📜 Terms & Conditions
+              </a>
+              <a 
+                href="#about-us" 
+                onClick={() => { window.location.hash = '#about-us'; setActiveSection('about'); setShowMobileLegalMenu(false); }} 
+                className="p-2 py-2.5 bg-zinc-900/70 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all flex items-center gap-1 justify-center font-bold"
+              >
+                👥 About Us
+              </a>
+              <a 
+                href="#contact-us" 
+                onClick={() => { window.location.hash = '#contact-us'; setActiveSection('contact'); setShowMobileLegalMenu(false); }} 
+                className="p-2 py-2.5 bg-zinc-900/70 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all flex items-center gap-1 justify-center font-bold"
+              >
+                📧 Contact Us
+              </a>
+              <a 
+                href="#disclaimer" 
+                onClick={() => { window.location.hash = '#disclaimer'; setActiveSection('disclaimer'); setShowMobileLegalMenu(false); }} 
+                className="p-2 py-2.5 bg-zinc-900/70 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all flex items-center gap-1 justify-center font-bold col-span-2 text-rose-450"
+              >
+                ⚖️ Legal Disclaimer
+              </a>
+              <a 
+                href="#refund-policy" 
+                onClick={() => { window.location.hash = '#refund-policy'; setActiveSection('refund'); setShowMobileLegalMenu(false); }} 
+                className="p-2 py-2.5 bg-zinc-900/70 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all flex items-center gap-1 justify-center font-bold col-span-2 text-rose-450"
+              >
+                💸 Refund Policy
+              </a>
+            </div>
+            <div className="pt-1 text-[9px] text-zinc-550 text-center uppercase tracking-wide border-t border-zinc-900 pt-2">
+              Support Desk: pkumar15187@gmail.com
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Auth Gate (Login/Register) Dialog Modal */}
@@ -2828,11 +3003,14 @@ export default function App() {
       <div 
         className="fixed bottom-4 right-4 z-50 bg-black/90 border border-zinc-805 rounded-xl p-3 shadow-xl max-w-xs font-mono text-[10px] text-zinc-400"
         style={{
+          display: 'none' // Visually hidden in compliance with production display guidelines. Available below for developer override:
+          /*
           display: (typeof window !== 'undefined' && (
             window.location.search.includes('dev=true') || 
             window.location.hash.includes('dev=true') || 
             localStorage.getItem('show_dev_meter') === 'true'
           )) ? 'block' : 'none'
+          */
         }}
       >
         <div className="flex items-center justify-between border-b border-zinc-850 pb-1.5 mb-1.5">

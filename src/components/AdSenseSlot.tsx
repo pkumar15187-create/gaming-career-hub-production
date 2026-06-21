@@ -7,14 +7,48 @@ interface AdSenseSlotProps {
    */
   slotType: 'home' | 'directory' | 'tournament' | 'leaderboard' | 'sponsor' | 'footer' | 'mobile_sticky';
   className?: string;
+  activeSection?: string;
 }
 
-export default function AdSenseSlot({ slotType, className = "" }: AdSenseSlotProps) {
+export default function AdSenseSlot({ slotType, className = "", activeSection }: AdSenseSlotProps) {
   const config = getLocalAdConfig();
 
   // Ads should be hidden until AdSense code is configured.
   if (!config.adsenseEnabled || !config.adsenseClientId) {
     return null;
+  }
+
+  // Strict Compliance Checks: Ensure AdSense is 100% hidden on Login, Register, Payments, Checkout, Withdrawals, Dashboards, and Admin Panel.
+  const currentSection = (activeSection || (typeof window !== 'undefined' ? window.location.hash.toLowerCase().replace('#', '') : 'home')).toLowerCase();
+  
+  const forbiddenSectionsOrKeywords = [
+    'dashboard',
+    'admin',
+    'checkout',
+    'payment',
+    'withdraw',
+    'login',
+    'register',
+    'admin-panel'
+  ];
+
+  const isForbidden = forbiddenSectionsOrKeywords.some(keyword => 
+    currentSection.includes(keyword)
+  );
+
+  if (isForbidden) {
+    return null;
+  }
+
+  // Double-verify using direct window.location hash to avoid stale/incorrect prop states
+  if (typeof window !== 'undefined') {
+    const currentHash = window.location.hash.toLowerCase();
+    const isHashForbidden = forbiddenSectionsOrKeywords.some(keyword => 
+      currentHash.includes(keyword)
+    );
+    if (isHashForbidden) {
+      return null;
+    }
   }
 
   // Define standard responsive dimensions for each ad slot type

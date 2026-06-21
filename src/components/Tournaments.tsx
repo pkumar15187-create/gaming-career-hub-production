@@ -1557,6 +1557,90 @@ export default function Tournaments({
 
       {/* AdSense-ready tournament page slot */}
       <AdSenseSlot slotType="tournament" className="mt-8" />
+
+      {/* Legal & Support Section */}
+      <section className="bg-zinc-950/60 border border-zinc-900 rounded-3xl p-6 md:p-8 space-y-6 mt-12 font-mono">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-zinc-850 pb-4 gap-4">
+          <div>
+            <h3 className="text-sm font-black text-rose-500 tracking-widest uppercase flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+              LEGAL & SUPPORT ZONE
+            </h3>
+            <p className="text-[11px] text-zinc-555 font-sans mt-0.5">
+              Verified compliance matrices & legal declarations. AdSense-ready regulatory hub.
+            </p>
+          </div>
+          <div className="text-left md:text-right">
+            <span className="text-[10px] text-zinc-400 block uppercase font-bold">OPERATIONS INTEGRITY DESK</span>
+            <a href="mailto:pkumar15187@gmail.com" className="text-xs text-rose-455 hover:text-rose-400 font-bold underline transition-colors">
+              pkumar15187@gmail.com
+            </a>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-[11px]">
+          <a
+            href="#privacy-policy"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.hash = '#privacy-policy';
+            }}
+            className="p-3 bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all text-center font-bold text-zinc-300 hover:text-white"
+          >
+            🛡️ Privacy Policy
+          </a>
+          <a
+            href="#terms-and-conditions"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.hash = '#terms-and-conditions';
+            }}
+            className="p-3 bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all text-center font-bold text-zinc-300 hover:text-white"
+          >
+            📜 Terms & Conditions
+          </a>
+          <a
+            href="#about-us"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.hash = '#about-us';
+            }}
+            className="p-3 bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all text-center font-bold text-zinc-300 hover:text-white"
+          >
+            👥 About Us
+          </a>
+          <a
+            href="#contact-us"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.hash = '#contact-us';
+            }}
+            className="p-3 bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all text-center font-bold text-zinc-300 hover:text-white"
+          >
+            📧 Contact Us
+          </a>
+          <a
+            href="#disclaimer"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.hash = '#disclaimer';
+            }}
+            className="p-3 bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all text-center font-bold text-zinc-300 hover:text-white"
+          >
+            ⚖️ Disclaimer
+          </a>
+          <a
+            href="#refund-policy"
+            onClick={(e) => {
+              e.preventDefault();
+              window.location.hash = '#refund-policy';
+            }}
+            className="p-3 bg-zinc-900/50 border border-zinc-800 hover:bg-zinc-850 hover:border-zinc-700 rounded-xl transition-all text-center font-bold text-zinc-300 hover:text-white"
+          >
+            💸 Refund Policy
+          </a>
+        </div>
+      </section>
     </div>
   );
 }

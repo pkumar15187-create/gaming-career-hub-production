@@ -558,4 +558,28 @@ export interface AnalyticsEvent {
   created_at: string;
 }
 
+export interface AdminOffer {
+  id: string;
+  title: string;
+  description: string;
+  banner_image: string;
+  cta_text: string;
+  cta_link: string;
+  active_status: boolean;
+  start_date: string;
+  end_date: string;
+  created_at?: string;
+}
+
+export interface FAQItem {
+  id: string;
+  category: 'Account' | 'Registration' | 'Login' | 'Membership' | 'Diamond Wallet' | 'Top-up' | 'Withdraw' | 'Tournaments' | 'Room ID & Password' | 'Referral' | 'Promo Codes' | 'Payments' | 'Security' | 'Technical Issues';
+  question: string;
+  answer: string;
+  status: 'published' | 'draft';
+  isFeatured?: boolean;
+  created_at: string;
+}
+
+
 

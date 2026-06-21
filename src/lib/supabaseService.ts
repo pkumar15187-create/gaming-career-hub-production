@@ -232,11 +232,11 @@ export const supabaseService = {
     } catch (err: any) {
       const errMsg = err?.message || err?.toString() || '';
       const isAlreadyRegistered = 
-        errMsg.toLowerCase().includes("already registered") || 
+        errMsg.toLowerCase().includes("already") || 
+        errMsg.toLowerCase().includes("registered") || 
+        errMsg.toLowerCase().includes("exists") || 
         errMsg.toLowerCase().includes("email_exists") || 
-        errMsg.toLowerCase().includes("user_already_exists") ||
-        errMsg.toLowerCase().includes("user already exists") ||
-        errMsg.toLowerCase().includes("already_registered");
+        errMsg.toLowerCase().includes("user_already_exists");
 
       if (isAlreadyRegistered) {
         console.warn("Supabase user registration: User already registered check triggered:", errMsg);

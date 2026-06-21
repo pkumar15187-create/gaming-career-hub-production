@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { UserProfile, Team, Tournament, SponsorApplication, Notification, AdminSettings, DbPayment, DbTournamentRegistration, DbTournamentMatch, TournamentResult, SubscriptionCancellationRequest, Sponsor, SponsorClick } from '../types';
+import { Article } from '../data/articles';
+import { UserProfile, Team, Tournament, SponsorApplication, Notification, AdminSettings, DbPayment, DbTournamentRegistration, DbTournamentMatch, TournamentResult, SubscriptionCancellationRequest, Sponsor, SponsorClick, AdminOffer, FAQItem } from '../types';
 import { supabaseService } from '../lib/supabaseService';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { ShieldAlert, LogOut, Users, Trophy, DollarSign, Image, Gift, Percent, Plus, Trash, Check, X, Ban, Sparkles, TrendingUp, KeyRound, Sparkle, AlertCircle, RefreshCw, Copy, Upload, Search, Filter, Eye, FileText } from 'lucide-react';
@@ -37,6 +38,16 @@ interface AdminPanelProps {
   registrations?: DbTournamentRegistration[];
   onUpdateTournamentRegistrationStatus?: (regId: string, status: 'approved' | 'rejected', paymentStatus?: 'pending' | 'paid' | 'unneeded' | 'rejected') => Promise<void>;
   onAdminRemoveRegistrationStatus?: (regId: string) => Promise<void>;
+  offers?: AdminOffer[];
+  onUpdateOffers?: (offers: AdminOffer[]) => void;
+  blogArticles?: Article[];
+  onCreateBlogArticle?: (article: Article) => void;
+  onUpdateBlogArticle?: (id: string, updates: Partial<Article>) => void;
+  onDeleteBlogArticle?: (id: string) => void;
+  faqItems?: FAQItem[];
+  onCreateFAQ?: (faq: FAQItem) => void;
+  onUpdateFAQ?: (id: string, updates: Partial<FAQItem>) => void;
+  onDeleteFAQ?: (id: string) => void;
 }
 
 export default function AdminPanel({
@@ -68,7 +79,17 @@ export default function AdminPanel({
   onUpdateTournament,
   registrations = [],
   onUpdateTournamentRegistrationStatus,
-  onAdminRemoveRegistrationStatus
+  onAdminRemoveRegistrationStatus,
+  offers = [],
+  onUpdateOffers,
+  blogArticles = [],
+  onCreateBlogArticle,
+  onUpdateBlogArticle,
+  onDeleteBlogArticle,
+  faqItems = [],
+  onCreateFAQ,
+  onUpdateFAQ,
+  onDeleteFAQ
 }: AdminPanelProps) {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [username, setUsername] = useState('');
@@ -78,12 +99,262 @@ export default function AdminPanel({
   // Tab routing
   const [activeTab, setActiveTab ] = useState<
     'analytics' | 'users' | 'profiles' | 'teams' | 'tournaments' | 'payments' | 'coupons' | 'sponsors' | 'membership_benefits' | 'diamonds' |
-    'creator_verification' | 'featured_promotions' | 'self_ads' | 'banner_ads' | 'invoices_manager' | 'business_dashboard'
+    'creator_verification' | 'featured_promotions' | 'self_ads' | 'banner_ads' | 'invoices_manager' | 'business_dashboard' | 'latest_offers' | 'blog' | 'faq'
   >('analytics');
 
   // Creator Verification Admin States
   const [adminVerifications, setAdminVerifications] = useState<any[]>([]);
   const [verificationFeedback, setVerificationFeedback] = useState('');
+
+  // FAQ Admin States
+  const [faqQuestion, setFaqQuestion] = useState('');
+  const [faqAnswer, setFaqAnswer] = useState('');
+  const [faqCategory, setFaqCategory] = useState<FAQItem['category']>('Account');
+  const [faqStatus, setFaqStatus] = useState<FAQItem['status']>('published');
+  const [isFaqFeatured, setIsFaqFeatured] = useState(false);
+  const [editingFaqId, setEditingFaqId] = useState<string | null>(null);
+  const [isAddingFaq, setIsAddingFaq] = useState(false);
+
+
+  // Blog Archive Manager States
+  const [blogTitle, setBlogTitle] = useState('');
+  const [blogSlug, setBlogSlug] = useState('');
+  const [blogCategory, setBlogCategory] = useState<Article['category']>('BGMI');
+  const [blogAuthor, setBlogAuthor] = useState('');
+  const [blogReadTime, setBlogReadTime] = useState('8 min read');
+  const [blogImage, setBlogImage] = useState('');
+  const [blogMetaTitle, setBlogMetaTitle] = useState('');
+  const [blogMetaDescription, setBlogMetaDescription] = useState('');
+  const [blogSummary, setBlogSummary] = useState('');
+  const [blogStatus, setBlogStatus] = useState<'published' | 'draft'>('published');
+  
+  const [section1Heading, setSection1Heading] = useState('');
+  const [section1Paragraphs, setSection1Paragraphs] = useState('');
+  const [section1List, setSection1List] = useState('');
+
+  const [section2Heading, setSection2Heading] = useState('');
+  const [section2Paragraphs, setSection2Paragraphs] = useState('');
+
+  const [section3Heading, setSection3Heading] = useState('');
+  const [section3Paragraphs, setSection3Paragraphs] = useState('');
+
+  const [faq1Question, setFaq1Question] = useState('');
+  const [faq1Answer, setFaq1Answer] = useState('');
+  const [faq2Question, setFaq2Question] = useState('');
+  const [faq2Answer, setFaq2Answer] = useState('');
+
+  const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
+  const [isAddingArticle, setIsAddingArticle] = useState(false);
+
+  const handleBlogTitleChange = (val: string) => {
+    setBlogTitle(val);
+    if (!editingArticleId) {
+      setBlogSlug(val.toLowerCase().trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+      );
+    }
+  };
+
+  const handleEditBlogClick = (art: Article) => {
+    setEditingArticleId(art.id);
+    setBlogTitle(art.title);
+    setBlogSlug(art.slug);
+    setBlogCategory(art.category);
+    setBlogAuthor(art.author);
+    setBlogReadTime(art.readTime);
+    setBlogImage(art.image);
+    setBlogMetaTitle(art.metaTitle);
+    setBlogMetaDescription(art.metaDescription);
+    setBlogSummary(art.summary);
+    setBlogStatus(art.status || 'published');
+
+    // Section 1
+    const sec1 = art.sections[0] || { heading: '', paragraphs: [], list: [] };
+    setSection1Heading(sec1.heading || '');
+    setSection1Paragraphs(sec1.paragraphs ? sec1.paragraphs.join('\n\n') : '');
+    setSection1List(sec1.list ? sec1.list.join('\n') : '');
+
+    // Section 2
+    const sec2 = art.sections[1] || { heading: '', paragraphs: [] };
+    setSection2Heading(sec2.heading || '');
+    setSection2Paragraphs(sec2.paragraphs ? sec2.paragraphs.join('\n\n') : '');
+
+    // Section 3
+    const sec3 = art.sections[2] || { heading: '', paragraphs: [] };
+    setSection3Heading(sec3.heading || '');
+    setSection3Paragraphs(sec3.paragraphs ? sec3.paragraphs.join('\n\n') : '');
+
+    // FAQs
+    const faq1 = art.faq && art.faq[0] ? art.faq[0] : { question: '', answer: '' };
+    setFaq1Question(faq1.question || '');
+    setFaq1Answer(faq1.answer || '');
+
+    const faq2 = art.faq && art.faq[1] ? art.faq[1] : { question: '', answer: '' };
+    setFaq2Question(faq2.question || '');
+    setFaq2Answer(faq2.answer || '');
+
+    setIsAddingArticle(true);
+  };
+
+  const handleResetBlogForm = () => {
+    setEditingArticleId(null);
+    setBlogTitle('');
+    setBlogSlug('');
+    setBlogCategory('BGMI');
+    setBlogAuthor('');
+    setBlogReadTime('8 min read');
+    setBlogImage('');
+    setBlogMetaTitle('');
+    setBlogMetaDescription('');
+    setBlogSummary('');
+    setBlogStatus('published');
+
+    setSection1Heading('');
+    setSection1Paragraphs('');
+    setSection1List('');
+
+    setSection2Heading('');
+    setSection2Paragraphs('');
+
+    setSection3Heading('');
+    setSection3Paragraphs('');
+
+    setFaq1Question('');
+    setFaq1Answer('');
+    setFaq2Question('');
+    setFaq2Answer('');
+
+    setIsAddingArticle(false);
+  };
+
+  const handleSaveBlogArticle = () => {
+    if (!blogTitle || !blogAuthor || !blogSummary) {
+      addToast("Please fill in high-impact metadata fields: Title, Author, Summary", "warning");
+      return;
+    }
+
+    const sections = [];
+    if (section1Heading || section1Paragraphs) {
+      sections.push({
+        heading: section1Heading || 'Key Strategic Takeaways',
+        paragraphs: section1Paragraphs ? section1Paragraphs.split('\n\n').filter(Boolean) : ['Strategic information coming.'],
+        list: section1List ? section1List.split('\n').filter(Boolean) : []
+      });
+    }
+    if (section2Heading || section2Paragraphs) {
+      sections.push({
+        heading: section2Heading || 'Tactical Matchplay Overview',
+        paragraphs: section2Paragraphs ? section2Paragraphs.split('\n\n').filter(Boolean) : ['Further details arriving soon.']
+      });
+    }
+    if (section3Heading || section3Paragraphs) {
+      sections.push({
+        heading: section3Heading || 'Technical Mechanics Optimization',
+        paragraphs: section3Paragraphs ? section3Paragraphs.split('\n\n').filter(Boolean) : ['Hardware and software settings guide.']
+      });
+    }
+
+    if (sections.length === 0) {
+      sections.push({
+        heading: 'Strategic Summary',
+        paragraphs: ['Article summary sections list.']
+      });
+    }
+
+    const faq = [];
+    if (faq1Question && faq1Answer) {
+      faq.push({ question: faq1Question, answer: faq1Answer });
+    }
+    if (faq2Question && faq2Answer) {
+      faq.push({ question: faq2Question, answer: faq2Answer });
+    }
+
+    const defaultImage = blogImage || "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=800";
+
+    const articleData: Article = {
+      id: editingArticleId || `art-gen-${Date.now()}`,
+      slug: blogSlug || blogTitle.toLowerCase().replace(/ /g, '-').replace(/[^\w-]/g, ''),
+      title: blogTitle,
+      category: blogCategory,
+      author: blogAuthor,
+      date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      readTime: blogReadTime,
+      image: defaultImage,
+      metaTitle: blogMetaTitle || `${blogTitle} | Gaming Career Hub`,
+      metaDescription: blogMetaDescription || blogSummary.substring(0, 155),
+      summary: blogSummary,
+      sections,
+      faq,
+      status: blogStatus
+    };
+
+    if (editingArticleId) {
+      if (onUpdateBlogArticle) {
+        onUpdateBlogArticle(editingArticleId, articleData);
+      }
+      addToast("Article optimized and updated successfully!", "success");
+    } else {
+      if (onCreateBlogArticle) {
+        onCreateBlogArticle(articleData);
+      }
+      addToast("New professional article published successfully!", "success");
+    }
+
+    handleResetBlogForm();
+  };
+
+  const handleEditFAQClick = (faq: FAQItem) => {
+    setEditingFaqId(faq.id);
+    setFaqQuestion(faq.question);
+    setFaqAnswer(faq.answer);
+    setFaqCategory(faq.category);
+    setFaqStatus(faq.status || 'published');
+    setIsFaqFeatured(faq.isFeatured || false);
+    setIsAddingFaq(true);
+  };
+
+  const handleResetFAQForm = () => {
+    setEditingFaqId(null);
+    setFaqQuestion('');
+    setFaqAnswer('');
+    setFaqCategory('Account');
+    setFaqStatus('published');
+    setIsFaqFeatured(false);
+    setIsAddingFaq(false);
+  };
+
+  const handleSaveFAQ = () => {
+    if (!faqQuestion || !faqAnswer) {
+      addToast("FAQ question and answer parameters are mandatory.", "warning");
+      return;
+    }
+
+    const faqData: FAQItem = {
+      id: editingFaqId || `faq-gen-${Date.now()}`,
+      question: faqQuestion,
+      answer: faqAnswer,
+      category: faqCategory,
+      status: faqStatus,
+      isFeatured: isFaqFeatured,
+      created_at: new Date().toISOString()
+    };
+
+    if (editingFaqId) {
+      if (onUpdateFAQ) {
+        onUpdateFAQ(editingFaqId, faqData);
+      }
+      addToast("Help FAQ updated and calibrated successfully!", "success");
+    } else {
+      if (onCreateFAQ) {
+        onCreateFAQ(faqData);
+      }
+      addToast("New Help FAQ published on support database!", "success");
+    }
+
+    handleResetFAQForm();
+  };
 
   // Featured Item Admin States
   const [adminFeaturedItems, setAdminFeaturedItems] = useState<any[]>([]);
@@ -106,6 +377,16 @@ export default function AdminPanel({
   const [bannerActive, setBannerActive] = useState(true);
   const [bannerStart, setBannerStart] = useState('');
   const [bannerEnd, setBannerEnd] = useState('');
+
+  // Admin Offers Form States
+  const [newOfferTitle, setNewOfferTitle] = useState('');
+  const [newOfferDesc, setNewOfferDesc] = useState('');
+  const [newOfferBanner, setNewOfferBanner] = useState('');
+  const [newOfferCtaText, setNewOfferCtaText] = useState('Claim Offer');
+  const [newOfferCtaLink, setNewOfferCtaLink] = useState('#tournaments');
+  const [newOfferActive, setNewOfferActive] = useState(true);
+  const [newOfferStart, setNewOfferStart] = useState('');
+  const [newOfferEnd, setNewOfferEnd] = useState('');
 
   // SEO & Webmaster Integrations States
   const [seoGsc, setSeoGsc] = useState(() => localStorage.getItem('seo_verification_gsc') || '');
@@ -2080,6 +2361,14 @@ export default function AdminPanel({
           🔥 PINNED SLIDERS
         </button>
         <button
+          onClick={() => setActiveTab('latest_offers')}
+          className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all relative ${
+            activeTab === 'latest_offers' ? 'bg-red-600 text-white shadow' : 'text-zinc-400 hover:text-white'
+          }`}
+        >
+          🎁 LATEST OFFERS
+        </button>
+        <button
           onClick={() => setActiveTab('self_ads')}
           className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all relative ${
             activeTab === 'self_ads' ? 'bg-red-600 text-white shadow' : 'text-zinc-400 hover:text-white'
@@ -2115,6 +2404,22 @@ export default function AdminPanel({
           }`}
         >
           📈 BUSINESS ANALYTICS & REPORTS
+        </button>
+        <button
+          onClick={() => setActiveTab('blog')}
+          className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all bg-zinc-950 border border-zinc-850 ${
+            activeTab === 'blog' ? 'bg-gradient-to-r from-rose-650 to-rose-505 text-white shadow border-transparent' : 'text-rose-400 hover:text-white border-rose-950/20'
+          }`}
+        >
+          📰 BLOG ARCHIVE MANAGER
+        </button>
+        <button
+          onClick={() => setActiveTab('faq')}
+          className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all bg-zinc-950 border border-zinc-850 ${
+            activeTab === 'faq' ? 'bg-gradient-to-r from-emerald-650 to-emerald-505 text-white shadow border-transparent' : 'text-emerald-400 hover:text-white border-emerald-950/20'
+          }`}
+        >
+          ❓ HELP & FAQ DATABASE
         </button>
       </div>
 
@@ -6024,6 +6329,231 @@ export default function AdminPanel({
           </div>
         )}
 
+        {activeTab === 'latest_offers' && (
+          <div className="space-y-6 font-mono text-xs">
+            {/* Header */}
+            <div>
+              <h3 className="text-sm md:text-base font-extrabold text-white uppercase tracking-wide border-b border-zinc-800 pb-2 flex items-center gap-2">
+                <Gift className="w-5 h-5 text-rose-500 animate-pulse" />
+                Latest Offers & Public Promotions Engine
+              </h3>
+              <p className="text-zinc-400 mt-1 font-sans font-normal text-[11px]">
+                Create, customize, schedule, and toggle active promotions shown directly on the public landing page for visitors and AdSense reviewers.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Form to create offer */}
+              <div className="lg:col-span-1 bg-zinc-950/40 border border-zinc-850 p-5 rounded-2xl space-y-4">
+                <h4 className="font-extrabold text-white text-[11px] uppercase tracking-wider text-rose-500 flex items-center gap-1.5">
+                  🎁 Create Promotional Offer
+                </h4>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newOfferTitle.trim() || !newOfferDesc.trim()) {
+                    addToast("Title and Description are required metrics.", "error");
+                    return;
+                  }
+
+                  const created: AdminOffer = {
+                    id: `offer-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                    title: newOfferTitle.trim(),
+                    description: newOfferDesc.trim(),
+                    banner_image: newOfferBanner.trim() || "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=60",
+                    cta_text: newOfferCtaText.trim() || "Claim Offer",
+                    cta_link: newOfferCtaLink.trim() || "#tournaments",
+                    active_status: newOfferActive,
+                    start_date: newOfferStart || new Date().toISOString().split('T')[0],
+                    end_date: newOfferEnd || "2030-12-31"
+                  };
+
+                  if (onUpdateOffers) {
+                    onUpdateOffers([...offers, created]);
+                    addToast(`Offer "${created.title}" added to active cache.`, "success");
+                    setNewOfferTitle('');
+                    setNewOfferDesc('');
+                    setNewOfferBanner('');
+                    setNewOfferCtaText('Claim Offer');
+                    setNewOfferCtaLink('#tournaments');
+                    setNewOfferActive(true);
+                    setNewOfferStart('');
+                    setNewOfferEnd('');
+                  } else {
+                    addToast("System callback trigger error on offer creation.", "error");
+                  }
+                }} className="space-y-3.5">
+                  
+                  <div className="space-y-1">
+                    <label className="block text-[9px] text-zinc-550 uppercase font-bold">Offer Title *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. Free Fire Diamond Rush"
+                      value={newOfferTitle}
+                      onChange={e => setNewOfferTitle(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white px-2.5 py-2 rounded text-[11px]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] text-zinc-550 uppercase font-bold">Description *</label>
+                    <textarea
+                      required
+                      rows={3}
+                      placeholder="Give a compelling deal description..."
+                      value={newOfferDesc}
+                      onChange={e => setNewOfferDesc(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white px-2.5 py-2 rounded text-[11px]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] text-zinc-550 uppercase font-bold">Banner Image (URL)</label>
+                    <input
+                      type="text"
+                      placeholder="Unsplash banner image link"
+                      value={newOfferBanner}
+                      onChange={e => setNewOfferBanner(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white px-2.5 py-2 rounded text-[11px]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="block text-[9px] text-zinc-550 uppercase font-bold">CTA Text</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Enlist Now"
+                        value={newOfferCtaText}
+                        onChange={e => setNewOfferCtaText(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 text-white px-2 rounded h-8 text-[11px]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[9px] text-zinc-550 uppercase font-bold">CTA Link / Hash</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. #tournaments"
+                        value={newOfferCtaLink}
+                        onChange={e => setNewOfferCtaLink(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 text-white px-2 rounded h-8 text-[11px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <label className="block text-[9px] text-zinc-550 uppercase font-bold">Start Date</label>
+                      <input
+                        type="date"
+                        value={newOfferStart}
+                        onChange={e => setNewOfferStart(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 text-white px-2 rounded h-8 text-[11px]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[9px] text-zinc-550 uppercase font-bold">End Date</label>
+                      <input
+                        type="date"
+                        value={newOfferEnd}
+                        onChange={e => setNewOfferEnd(e.target.value)}
+                        className="w-full bg-zinc-900 border border-zinc-800 text-white px-2 rounded h-8 text-[11px]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
+                    <input
+                      type="checkbox"
+                      id="newOfferActive"
+                      checked={newOfferActive}
+                      onChange={e => setNewOfferActive(e.target.checked)}
+                      className="accent-rose-500 rounded bg-zinc-900 border-zinc-805"
+                    />
+                    <label htmlFor="newOfferActive" className="text-[10px] text-zinc-300 font-bold uppercase select-none cursor-pointer">
+                      Mark as Active immediately
+                    </label>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="w-full py-2 bg-rose-600 hover:bg-rose-700 text-white rounded font-extrabold uppercase transition-colors"
+                  >
+                    Deploy Promotional Offer
+                  </button>
+                </form>
+              </div>
+
+              {/* List of active offers */}
+              <div className="lg:col-span-2 space-y-4">
+                <h4 className="font-extrabold text-white text-[11px] uppercase tracking-wider text-zinc-400">
+                  📋 Currently Deployed Offers ({offers.length})
+                </h4>
+
+                {offers.length === 0 ? (
+                  <div className="p-8 text-center bg-zinc-950/40 border border-zinc-900 rounded-2xl text-zinc-550 italic">
+                    No active offers have been configured yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {offers.map(o => (
+                      <div key={o.id} className="p-4 bg-zinc-950 border border-zinc-900 rounded-xl flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                        <div className="flex gap-3 items-center">
+                          <img 
+                            src={o.banner_image} 
+                            alt="" 
+                            className="w-16 h-10 object-cover rounded border border-zinc-800 bg-zinc-900" 
+                          />
+                          <div>
+                            <h5 className="font-bold text-white uppercase text-[11px]">{o.title}</h5>
+                            <p className="text-zinc-550 text-[10px] font-sans font-normal line-clamp-1 max-w-sm">{o.description}</p>
+                            <div className="flex gap-2 items-center text-[9px] text-zinc-450 mt-1 font-mono">
+                              <span className={`px-1.5 py-0.5 rounded ${o.active_status ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-550/10 text-rose-450'}`}>
+                                {o.active_status ? 'Active' : 'Inactive'}
+                              </span>
+                              <span>• CTA: {o.cta_text} ({o.cta_link})</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onUpdateOffers) {
+                                const toggled = offers.map(item => item.id === o.id ? { ...item, active_status: !item.active_status } : item);
+                                onUpdateOffers(toggled);
+                                addToast(`Toggled activation for "${o.title}"`, "success");
+                              }
+                            }}
+                            className={`px-2.5 py-1 text-[9px] font-black uppercase rounded ${o.active_status ? 'bg-zinc-800 text-zinc-400 hover:text-white' : 'bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30'}`}
+                          >
+                            Toggle Status
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onUpdateOffers) {
+                                const deleted = offers.filter(item => item.id !== o.id);
+                                onUpdateOffers(deleted);
+                                addToast(`Removed promotion: "${o.title}"`, "info");
+                              }
+                            }}
+                            className="p-1 px-2.5 bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded text-[9px] uppercase font-black"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'featured_promotions' && (
           <div className="space-y-6 font-mono text-xs">
             <div>
@@ -6903,7 +7433,705 @@ export default function AdminPanel({
             </motion.div>
           </div>
         )}
+
+        {activeTab === 'blog' && (
+          <div className="space-y-6 font-mono text-xs">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-zinc-800">
+              <div>
+                <h3 className="text-sm md:text-base font-extrabold text-white uppercase tracking-wide flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-rose-500" />
+                  Gamer Hub Professional Blog & SEO Archive Manager
+                </h3>
+                <p className="text-zinc-500 mt-1 font-sans font-normal text-[11px]">
+                  Write, revise, draft, or delete search-engine-optimized dynamic articles across all 10 verified gaming taxonomy branches.
+                </p>
+              </div>
+
+              {!isAddingArticle && (
+                <button
+                  onClick={() => {
+                    handleResetBlogForm();
+                    setIsAddingArticle(true);
+                  }}
+                  className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white font-extrabold text-[11px] rounded-xl flex items-center gap-1.5 shadow transition-all uppercase cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Publish New Article
+                </button>
+              )}
+            </div>
+
+            {isAddingArticle ? (
+              /* CREATE / EDIT ARTICLE FORM CONTAINER */
+              <div className="bg-zinc-950 p-6 border border-zinc-900 rounded-2xl space-y-6">
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
+                  <h4 className="text-xs uppercase font-extrabold text-rose-400">
+                    {editingArticleId ? "🔧 Adjusting Tactical Article Matrix" : "✍️ Authoring New Esport Masterclass Guide"}
+                  </h4>
+                  <button
+                    onClick={handleResetBlogForm}
+                    className="text-zinc-500 hover:text-white uppercase text-[10px] bg-zinc-900 border border-zinc-850 px-2.5 py-1 rounded-md"
+                  >
+                    Cancel Edit
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Title */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Article Title *</label>
+                    <input
+                      type="text"
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-rose-500 text-xs"
+                      placeholder="e.g. Masterclass Strategies For Solo Queue Dominance"
+                      value={blogTitle}
+                      onChange={(e) => handleBlogTitleChange(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Slug */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Dynamic URL Slug (Auto-generated) *</label>
+                    <input
+                      type="text"
+                      className="w-full bg-zinc-900 border border-zinc-805 text-zinc-300 rounded-lg px-3 py-2 focus:outline-none focus:border-rose-500 text-xs font-mono"
+                      placeholder="e.g. masterclass-strategies-solo-queue"
+                      value={blogSlug}
+                      onChange={(e) => setBlogSlug(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Category select */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Official Category *</label>
+                    <select
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-rose-500 text-xs"
+                      value={blogCategory}
+                      onChange={(e) => setBlogCategory(e.target.value as any)}
+                    >
+                      <option value="Free Fire MAX">Free Fire MAX</option>
+                      <option value="BGMI">BGMI</option>
+                      <option value="Call of Duty">Call of Duty</option>
+                      <option value="Valorant">Valorant</option>
+                      <option value="Esports News">Esports News</option>
+                      <option value="Gaming Career">Gaming Career</option>
+                      <option value="Tournament Guides">Tournament Guides</option>
+                      <option value="Gaming Tips">Gaming Tips</option>
+                      <option value="Gaming Phones">Gaming Phones</option>
+                      <option value="Gaming PCs">Gaming PCs</option>
+                    </select>
+                  </div>
+
+                  {/* Author */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Author Pen Name *</label>
+                    <input
+                      type="text"
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2"
+                      placeholder="e.g. Coach Siddharth Roy"
+                      value={blogAuthor}
+                      onChange={(e) => setBlogAuthor(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Read Time */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Reading Time Interval</label>
+                    <input
+                      type="text"
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2"
+                      placeholder="e.g. 7 min read"
+                      value={blogReadTime}
+                      onChange={(e) => setBlogReadTime(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Status drafting */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Publication Status</label>
+                    <select
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2.5 focus:outline-none focus:border-rose-500 text-xs"
+                      value={blogStatus}
+                      onChange={(e) => setBlogStatus(e.target.value as any)}
+                    >
+                      <option value="published">🟢 Published (Online immediately)</option>
+                      <option value="draft">🟡 Draft (Hidden from directory feed)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Hero image URL with load placeholder buttons */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] text-zinc-500 uppercase font-black">Hero Image URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      className="flex-1 bg-zinc-900 border border-zinc-800 text-white rounded-lg px-3 py-2 text-xs"
+                      placeholder="https://images.unsplash.com/..."
+                      value={blogImage}
+                      onChange={(e) => setBlogImage(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBlogImage("https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&q=80&w=800")}
+                      className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 px-3 py-2 rounded-lg text-[10px]"
+                    >
+                      Preset A (BGMI)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBlogImage("https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&q=80&w=800")}
+                      className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 px-3 py-2 rounded-lg text-[10px]"
+                    >
+                      Preset B (Tech/PCs)
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-zinc-500 font-sans mt-0.5">
+                    Supply standard web image address or click presets to fill dynamic tech canvas backdrops.
+                  </p>
+                </div>
+
+                {/* AdSense SEO Section */}
+                <div className="border border-zinc-850 p-4 rounded-xl bg-zinc-900/40 space-y-3">
+                  <span className="text-[10px] text-rose-450 font-black uppercase tracking-wider block">AdSense Fiduciary Meta Keywords (Highly Critical)</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase">Search Engine Custom Optimised Meta Title</label>
+                      <input
+                        type="text"
+                        className="w-full bg-zinc-900 border border-zinc-800 text-white rounded px-2.5 py-1.5"
+                        placeholder="Masterclass Pro Techniques | Gaming Career Hub"
+                        value={blogMetaTitle}
+                        onChange={(e) => setBlogMetaTitle(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase">Meta Search Engine Description (150-160 letters)</label>
+                      <input
+                        type="text"
+                        className="w-full bg-zinc-900 border border-zinc-800 text-white rounded px-2.5 py-1.5"
+                        placeholder="Comprehensive strategies focusing on team coordination, roster calibration, and tactical setups."
+                        value={blogMetaDescription}
+                        onChange={(e) => setBlogMetaDescription(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary input */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] text-zinc-500 uppercase font-black">Meta Summary Block (80-120 words) *</label>
+                  <textarea
+                    rows={2}
+                    className="w-full bg-zinc-900 border border-zinc-800 text-white rounded-lg p-3 focus:outline-none focus:border-rose-500 text-xs font-sans"
+                    placeholder="Provide a professional high-level synopsis explaining the takeaways and tactical background of this publication."
+                    value={blogSummary}
+                    onChange={(e) => setBlogSummary(e.target.value)}
+                  />
+                </div>
+
+                {/* Structured Sections editor (Up to 3 segments) */}
+                <div className="space-y-4 pt-2 border-t border-zinc-900">
+                  <h5 className="text-[11px] font-extrabold uppercase text-white flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> 
+                    Key Segment Section 1: Strategic Concepts
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase font-black">Heading Title</label>
+                      <input
+                        type="text"
+                        className="w-full bg-zinc-900 border border-zinc-850 text-white rounded-lg px-2.5 py-2 font-mono"
+                        placeholder="e.g. 1. Mastering Base Rotations"
+                        value={section1Heading}
+                        onChange={(e) => setSection1Heading(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase font-black">Body Content (Use double newlines for paragraph gaps)</label>
+                      <textarea
+                        rows={3}
+                        className="w-full bg-zinc-900 border border-zinc-850 text-white rounded-lg p-2.5 font-sans"
+                        placeholder="Type high-interest Esports analysis text paragraphs here."
+                        value={section1Paragraphs}
+                        onChange={(e) => setSection1Paragraphs(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-[9.5px] text-zinc-550 uppercase font-bold">Strategic Bullet List (Write each bullet on a separate line)</label>
+                    <textarea
+                      rows={2}
+                      className="w-full bg-zinc-900 border border-zinc-850 text-white rounded-lg p-2 font-sans"
+                      placeholder="Bullet item A
+Bullet item B
+Bullet item C"
+                      value={section1List}
+                      onChange={(e) => setSection1List(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Section 2 */}
+                <div className="space-y-3 pt-4 border-t border-zinc-900">
+                  <h5 className="text-[11px] font-extrabold uppercase text-white flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-550"></span> 
+                    Key Segment Section 2: Tactical Teamplay
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase">Heading Title</label>
+                      <input
+                        type="text"
+                        className="w-full bg-zinc-900 border border-zinc-850 text-white rounded-lg px-2.5 py-2 font-mono"
+                        placeholder="e.g. 2. Communications Calibration"
+                        value={section2Heading}
+                        onChange={(e) => setSection2Heading(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase">Body Content (Double newlines for paragraphs)</label>
+                      <textarea
+                        rows={2}
+                        className="w-full bg-zinc-900 border border-zinc-850 text-white rounded-lg p-2.5 font-sans"
+                        placeholder="Advanced team communications protocols content..."
+                        value={section2Paragraphs}
+                        onChange={(e) => setSection2Paragraphs(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Section 3 */}
+                <div className="space-y-3 pt-4 border-t border-zinc-900">
+                  <h5 className="text-[11px] font-extrabold uppercase text-white flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span> 
+                    Key Segment Section 3: Hardware Settings
+                  </h5>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1 md:col-span-1">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase">Heading Title</label>
+                      <input
+                        type="text"
+                        className="w-full bg-zinc-900 border border-zinc-850 text-white rounded-lg px-2.5 py-2 font-mono"
+                        placeholder="e.g. 3. System Framerates Calibration"
+                        value={section3Heading}
+                        onChange={(e) => setSection3Heading(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="block text-[9.5px] text-zinc-500 uppercase">Body Content (Double newlines for paragraphs)</label>
+                      <textarea
+                        rows={2}
+                        className="w-full bg-zinc-900 border border-zinc-850 text-white rounded-lg p-2.5 font-sans"
+                        placeholder="Optimizing visual parameters..."
+                        value={section3Paragraphs}
+                        onChange={(e) => setSection3Paragraphs(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Frequently Asked Questions FAQS (up to 2) */}
+                <div className="space-y-4 pt-4 border-t border-zinc-900 bg-zinc-900/20 p-4 rounded-xl border border-zinc-850">
+                  <span className="text-[10px] text-rose-450 font-black uppercase tracking-wider block">Frequently Asked Questions (AdSense FAQ Accordions)</span>
+                  
+                  <div className="space-y-3">
+                    <p className="text-[9px] text-zinc-500 uppercase font-black">FAQ Item #1</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        className="bg-zinc-950 border border-zinc-800 text-white rounded px-2.5 py-1.5 text-xs font-mono placeholder-zinc-600"
+                        placeholder="Question e.g. What is the optimal weapon combo?"
+                        value={faq1Question}
+                        onChange={(e) => setFaq1Question(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        className="bg-zinc-950 border border-zinc-800 text-white rounded px-2.5 py-1.5 text-xs font-sans placeholder-zinc-600"
+                        placeholder="Answer e.g. Pairing standard assault rifles and high damage snipers is best."
+                        value={faq1Answer}
+                        onChange={(e) => setFaq1Answer(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 pt-3 border-t border-zinc-950">
+                    <p className="text-[9px] text-zinc-500 uppercase font-black">FAQ Item #2</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        className="bg-zinc-955 border border-zinc-800 text-white rounded px-2.5 py-1.5 text-xs font-mono placeholder-zinc-600"
+                        placeholder="Question e.g. Does framerate matter?"
+                        value={faq2Question}
+                        onChange={(e) => setFaq2Question(e.target.value)}
+                      />
+                      <input
+                        type="text"
+                        className="bg-zinc-955 border border-zinc-800 text-white rounded px-2.5 py-1.5 text-xs font-sans placeholder-zinc-600"
+                        placeholder="Answer e.g. Absolutely, standard 240Hz monitors ensure the cleanest tracking."
+                        value={faq2Answer}
+                        onChange={(e) => setFaq2Answer(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-zinc-900">
+                  <button
+                    type="button"
+                    onClick={handleResetBlogForm}
+                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-850 text-zinc-400 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                  >
+                    Reset Form
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveBlogArticle}
+                    className="px-6 py-2 bg-rose-500 hover:bg-rose-600 border border-rose-650 text-white font-extrabold rounded-lg text-xs tracking-widest uppercase transition-all shadow-md shadow-rose-950/20 cursor-pointer"
+                  >
+                    {editingArticleId ? "Save tactical updates" : "Commit new pro guide"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* BLOG ARTICLES TABLE VIEW LIST */
+              <div className="space-y-4">
+                <div className="bg-zinc-950/60 p-4 border border-zinc-900 rounded-xl flex items-center justify-between text-[11px] font-mono text-zinc-400">
+                  <span>REGISTRY TOTAL LATEST: <strong className="text-white">{blogArticles.length} ARTICLES ACTIVE</strong></span>
+                  <span>ONLINE IN LIVE PRO DIRECTORY</span>
+                </div>
+
+                {blogArticles.length === 0 ? (
+                  <div className="p-12 text-center bg-zinc-950/40 border border-zinc-900 rounded-2xl">
+                    <FileText className="w-10 h-10 text-rose-505/20 mx-auto mb-2 animate-pulse" />
+                    <p className="text-zinc-400 text-xs font-mono uppercase">System has zero strategic articles</p>
+                    <p className="text-[10px] text-zinc-600 mt-1">Click publish new article to write tactical guide lines immediately.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto bg-zinc-950 border border-zinc-900 rounded-2xl shadow-xl">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-zinc-900 text-zinc-400 font-extrabold uppercase text-[10px] bg-zinc-950/80">
+                          <th className="py-3 px-4 pl-3">Image</th>
+                          <th className="py-3 px-3">Title & Category</th>
+                          <th className="py-3 px-2">Author & Date</th>
+                          <th className="py-3 px-3">Status</th>
+                          <th className="py-3 px-4 text-right pr-6">Action Matrices</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-950/30">
+                        {blogArticles.map((art) => {
+                          const isDraft = art.status === 'draft';
+                          return (
+                            <tr key={art.id} className="hover:bg-zinc-900/20 transition-all font-mono">
+                              <td className="py-3 px-4 pl-3">
+                                <img
+                                  src={art.image}
+                                  alt={art.title}
+                                  referrerPolicy="no-referrer"
+                                  className="w-12 h-8 rounded-lg object-cover border border-zinc-850"
+                                />
+                              </td>
+                              <td className="py-3 px-3">
+                                <div className="text-xs text-white font-bold max-w-xs md:max-w-md truncate" title={art.title}>
+                                  {art.title}
+                                </div>
+                                <div className="text-[9.5px] text-rose-400 font-bold uppercase mt-0.5">
+                                  #{art.category}
+                                </div>
+                              </td>
+                              <td className="py-3 px-2">
+                                <div className="text-xs text-zinc-300 font-sans">{art.author}</div>
+                                <div className="text-[9px] text-zinc-550 mt-0.5">{art.date}</div>
+                              </td>
+                              <td className="py-3 px-3">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (onUpdateBlogArticle) {
+                                      onUpdateBlogArticle(art.id, { status: isDraft ? 'published' : 'draft' });
+                                      addToast(`Article status calibrated to ${isDraft ? 'published' : 'draft'}`, "info");
+                                    }
+                                  }}
+                                  className={`px-2.5 py-1 rounded text-[10px] font-extrabold uppercase tracking-wide border transition-all ${
+                                    isDraft
+                                      ? "bg-amber-950/30 border-amber-600/30 text-amber-500 hover:bg-amber-900/30"
+                                      : "bg-emerald-950/30 border-emerald-600/30 text-emerald-450 hover:bg-emerald-900/30"
+                                  }`}
+                                  title="Click to toggle status"
+                                >
+                                  {isDraft ? "🟡 Draft" : "🟢 Online"}
+                                </button>
+                              </td>
+                              <td className="py-3 px-4 text-right pr-6 space-x-2">
+                                <button
+                                  onClick={() => handleEditBlogClick(art)}
+                                  className="bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 px-2.5 py-1.5 text-[9.5px] font-black rounded-lg transition-all uppercase cursor-pointer hover:border-zinc-700"
+                                >
+                                  Edit Article
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you completely sure you want to purge and delete this elite strategy article "${art.title}"?`)) {
+                                      if (onDeleteBlogArticle) {
+                                        onDeleteBlogArticle(art.id);
+                                        addToast("Tactical guide purged from archives permanently.", "success");
+                                      }
+                                    }
+                                  }}
+                                  className="bg-rose-950/20 hover:bg-rose-700/20 text-rose-450 border border-rose-900/30 px-2.5 py-1.5 text-[9.5px] font-black rounded-lg transition-all uppercase cursor-pointer hover:border-rose-600/30"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'faq' && (
+          <div className="space-y-6 font-mono text-xs text-left">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-zinc-800">
+              <div>
+                <h3 className="text-sm md:text-base font-extrabold text-white uppercase tracking-wide flex items-center gap-2">
+                  <span className="p-1 px-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded">❓</span>
+                  Gamer Hub Professional Help Center & FAQ Database Manager
+                </h3>
+                <p className="text-zinc-500 mt-1 font-sans font-normal text-[11px]">
+                  Write, review, publish, and structure search-engine-optimized help entries across all 14 official gaming departments.
+                </p>
+              </div>
+
+              {!isAddingFaq && (
+                <button
+                  onClick={() => {
+                    handleResetFAQForm();
+                    setIsAddingFaq(true);
+                  }}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-[11px] rounded-xl flex items-center gap-1.5 shadow transition-all uppercase cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> Add New FAQ
+                </button>
+              )}
+            </div>
+
+            {isAddingFaq ? (
+              /* CREATE / EDIT FAQ FORM CONTAINER */
+              <div className="bg-zinc-950 p-6 border border-zinc-900 rounded-2xl space-y-6">
+                <div className="flex justify-between items-center pb-2 border-b border-zinc-900">
+                  <h4 className="text-xs uppercase font-extrabold text-emerald-400">
+                    {editingFaqId ? "🔧 Adjusting Core Support FAQ Ledger" : "✍️ Authoring New Support Help Article"}
+                  </h4>
+                  <button
+                    onClick={handleResetFAQForm}
+                    className="text-zinc-500 hover:text-white uppercase text-[10px] bg-zinc-900 border border-zinc-850 px-2.5 py-1 rounded-md"
+                  >
+                    Cancel Edit
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Category Assignment */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black font-mono">Department *</label>
+                    <select
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded px-2.5 py-1.5 focus:outline-none focus:border-rose-500 text-xs font-mono"
+                      value={faqCategory}
+                      onChange={(e) => setFaqCategory(e.target.value as any)}
+                    >
+                      <option value="Account">Account</option>
+                      <option value="Registration">Registration</option>
+                      <option value="Login">Login</option>
+                      <option value="Membership">Membership</option>
+                      <option value="Diamond Wallet">Diamond Wallet</option>
+                      <option value="Top-up">Top-up</option>
+                      <option value="Withdraw">Withdraw</option>
+                      <option value="Tournaments">Tournaments</option>
+                      <option value="Room ID & Password">Room ID & Password</option>
+                      <option value="Referral">Referral</option>
+                      <option value="Promo Codes">Promo Codes</option>
+                      <option value="Payments">Payments</option>
+                      <option value="Security">Security</option>
+                      <option value="Technical Issues">Technical Issues</option>
+                    </select>
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Moderation Status *</label>
+                    <select
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white rounded px-2.5 py-1.5 focus:outline-none focus:border-rose-500 text-xs"
+                      value={faqStatus}
+                      onChange={(e) => setFaqStatus(e.target.value as any)}
+                    >
+                      <option value="published">Online / Published</option>
+                      <option value="draft">Review / Draft</option>
+                    </select>
+                  </div>
+
+                  {/* Featured Status Toggle */}
+                  <div className="space-y-1 col-span-1">
+                    <label className="block text-[10px] text-zinc-500 uppercase font-black">Homepage Promotion *</label>
+                    <div className="flex items-center gap-2 pt-1.5 select-none text-left">
+                      <input
+                        id="faq-featured-chk"
+                        type="checkbox"
+                        className="rounded border-zinc-800 bg-zinc-90 w-4 h-4 focus:ring-transparent focus:ring-offset-0 accent-rose-500"
+                        checked={isFaqFeatured}
+                        onChange={(e) => setIsFaqFeatured(e.target.checked)}
+                      />
+                      <label htmlFor="faq-featured-chk" className="text-zinc-300 font-bold text-xs cursor-pointer">
+                        Pin in Top 6 FAQs on Homepage
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* FAQ Question Input */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] text-zinc-500 uppercase font-black">FAQ Question Title *</label>
+                  <input
+                    type="text"
+                    className="w-full bg-zinc-905 border border-zinc-800 text-white rounded px-3 py-2.5 text-xs focus:outline-none focus:border-rose-500 font-sans font-bold"
+                    placeholder="e.g. How does the cash withdrawal threshold operate?"
+                    value={faqQuestion}
+                    onChange={(e) => setFaqQuestion(e.target.value)}
+                  />
+                </div>
+
+                {/* FAQ Answer Body Text */}
+                <div className="space-y-1 font-mono">
+                  <label className="block text-[10px] text-zinc-500 uppercase font-black">Detailed Answer Body Content (SEO Markdown Ready) *</label>
+                  <textarea
+                    rows={6}
+                    className="w-full bg-zinc-905 border border-zinc-800 text-white rounded p-3 text-xs focus:outline-none focus:border-rose-500 font-sans leading-relaxed"
+                    placeholder="Provide a comprehensive step-by-step description with legal parameters of the process to secure high CTR and satisfy user demands..."
+                    value={faqAnswer}
+                    onChange={(e) => setFaqAnswer(e.target.value)}
+                  />
+                </div>
+
+                {/* Submit Panel */}
+                <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-900">
+                  <button
+                    type="button"
+                    onClick={handleResetFAQForm}
+                    className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 font-extrabold uppercase text-[10px] rounded-lg cursor-pointer"
+                  >
+                    Cancel & Close Form
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveFAQ}
+                    className="px-5 py-2.5 bg-gradient-to-r from-emerald-650 to-emerald-505 hover:opacity-90 text-white font-extrabold uppercase text-[10.5px] rounded-lg cursor-pointer shadow"
+                  >
+                    {editingFaqId ? "Verify & Save Updates" : "Publish to Support Ledger"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* FAQ REGISTRY MAIN LIST & TABLE */
+              <div className="bg-zinc-950 p-6 border border-zinc-900 rounded-2xl space-y-4">
+                <div className="flex justify-between items-center text-[10px] text-zinc-500 border-b border-zinc-900 pb-2">
+                  <span>SUPPORT DATABASE TOTAL: <strong className="text-white">{faqItems.length} ENTRIES ACTIVE</strong></span>
+                  <span className="text-emerald-500 uppercase">SYSTEM CLEARANCE LEVEL 4</span>
+                </div>
+
+                {faqItems.length === 0 ? (
+                  <div className="text-center py-12 text-zinc-500">
+                    No FAQs registered on support ledger. Click 'Add New FAQ' to build the initial indexes.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-zinc-900 text-zinc-500 text-[10px] font-black uppercase">
+                          <th className="py-2.5 px-4 font-bold">Category</th>
+                          <th className="py-2.5 px-4 font-bold">Question & Status Badges</th>
+                          <th className="py-2.5 px-4 font-bold">Promotion</th>
+                          <th className="py-2.5 px-4 font-bold">Moderation status</th>
+                          <th className="py-2.5 px-4 font-bold text-right pr-6">Controls</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-900/60 font-sans">
+                        {faqItems.map((item) => {
+                          const isDraft = item.status === 'draft';
+                          return (
+                            <tr key={item.id} className="hover:bg-zinc-900/30 transition-colors">
+                              <td className="py-3.5 px-4 font-mono">
+                                <span className="px-2.5 py-1 bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold uppercase text-[9.5px] rounded-md">
+                                  {item.category}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 max-w-md">
+                                <p className="font-extrabold text-white text-xs leading-normal font-mono">{item.question}</p>
+                                <p className="text-[10px] text-zinc-550 mt-1 line-clamp-1">{item.answer}</p>
+                              </td>
+                              <td className="py-3.5 px-4 uppercase text-[9.5px] font-mono">
+                                {item.isFeatured ? (
+                                  <span className="text-amber-500 font-bold">⭐ pinned home</span>
+                                ) : (
+                                  <span className="text-zinc-650">--</span>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (onUpdateFAQ) {
+                                      onUpdateFAQ(item.id, { status: isDraft ? 'published' : 'draft' });
+                                      addToast(`FAQ status toggled to ${isDraft ? 'published' : 'draft'}`, "info");
+                                    }
+                                  }}
+                                  className={`px-3 py-1 text-[9.5px] font-bold rounded-lg transition-all ${
+                                    isDraft ? 'bg-zinc-950 border border-zinc-800 text-zinc-500 hover:text-white' : 'bg-emerald-950/20 border border-emerald-990/20 text-emerald-400 hover:border-emerald-700/30'
+                                  }`}
+                                  title="Check to toggle status"
+                                >
+                                  {isDraft ? "🟡 Draft" : "🟢 Online"}
+                                </button>
+                              </td>
+                              <td className="py-3.5 px-4 text-right pr-6 space-x-2 shrink-0 font-mono">
+                                <button
+                                  onClick={() => handleEditFAQClick(item)}
+                                  className="bg-zinc-900 hover:bg-zinc-805 text-zinc-350 border border-zinc-800 px-2.5 py-1.5 text-[9.5px] font-black rounded-lg transition-all uppercase cursor-pointer hover:border-zinc-700"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm(`Are you sure you want to delete this support FAQ: "${item.question}"?`)) {
+                                      if (onDeleteFAQ) {
+                                        onDeleteFAQ(item.id);
+                                        addToast("Support manual FAQ purged successfully.", "success");
+                                      }
+                                    }
+                                  }}
+                                  className="bg-rose-950/20 hover:bg-rose-700/20 text-rose-450 border border-rose-900/30 px-2.5 py-1.5 text-[9.5px] font-black rounded-lg transition-all uppercase cursor-pointer hover:border-rose-600/30"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </AnimatePresence>
+
 
       {/* Declare Champion Modal Popup */}
       <AnimatePresence>

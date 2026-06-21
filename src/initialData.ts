@@ -1,4 +1,4 @@
-import { UserProfile, Team, Tournament, SponsorApplication, Notification, AdminSettings } from './types';
+import { UserProfile, Team, Tournament, SponsorApplication, Notification, AdminSettings, AdminOffer } from './types';
 
 // Default QR Code placeholder (clean vector graphic or base64 or stable un-splash image)
 export const DEFAULT_QR_CODE = "https://images.unsplash.com/photo-1595079676339-1534801ad6cf?w=500&auto=format&fit=crop&q=60";
@@ -285,6 +285,31 @@ export const INITIAL_ADMIN_SETTINGS: AdminSettings = {
     { id: "reward-p1", name: "VIP Label everywhere", tier: "Platinum", description: "Displays a premium VIP crown tag beside user name across public indexes and leaderboards." }
   ]
 };
+
+export const INITIAL_OFFERS: AdminOffer[] = [
+  {
+    id: "offer-1",
+    title: "Weekend Ultimate Clash 2026",
+    description: "Ready your squad for the ultimate shootout! Total prize money pool reaches whopping ₹50,000. Pay entry with special diamonds.",
+    banner_image: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=60",
+    cta_text: "Enlist Now",
+    cta_link: "#tournaments",
+    active_status: true,
+    start_date: "2026-06-01",
+    end_date: "2026-07-31"
+  },
+  {
+    id: "offer-2",
+    title: "10% Double Diamonds Bonus!",
+    description: "Unlock premium membership tiers or boost wallet reserves. Top-up diamonds this week and enjoy a direct bonus credential added to audit stats.",
+    banner_image: "https://images.unsplash.com/photo-1612287230202-1bf1d85d1bdf?w=800&auto=format&fit=crop&q=60",
+    cta_text: "Top Up Wallet",
+    cta_link: "#dashboard",
+    active_status: true,
+    start_date: "2026-06-15",
+    end_date: "2026-06-30"
+  }
+];
 
 // LocalStorage helpers to load & save state
 export const loadData = <T>(key: string, defaultValue: T): T => {
